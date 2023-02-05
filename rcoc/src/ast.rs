@@ -10,7 +10,7 @@ pub enum Expression {
     Identifier(String, (usize, usize)),
     Application {
         function_expression: Box<Expression>,
-        parameter_expressions: Vec<Expression>,
+        parameter_expression: Box<Expression>,
         span: (usize, usize),
     },
     Lambda {
@@ -31,7 +31,7 @@ impl Expression {
             Self::Identifier(_, sp) => *sp,
             Self::Application {
                 function_expression: _,
-                parameter_expressions: _,
+                parameter_expression: _,
                 span,
             } => *span,
             Self::Lambda {

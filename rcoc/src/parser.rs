@@ -169,15 +169,17 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 identifier_expression,
             ));
             let application_expression = nonlrecursive_expression
-                .then(parameter_lists.map(|v| Some(v)).or(empty().to(None)))
-                .map_with_span(|t, sp| match t.1 {
-                    None => t.0,
-                    Some(v) => Expression::Application {
-                        function_expression: Box::new(t.0),
-                        parameter_expressions: v,
-                        span: (sp.start(), sp.end()),
-                    },
-                });
+                .clone()
+                .then(parameter_lists)
+                .foldl(|x, t| {
+                    let new_span = (x.get_span().0, t.get_span().1);
+                    Expression::Application {
+                        function_expression: Box::new(x),
+                        parameter_expression: Box::new(t),
+                        span: new_span,
+                    }
+                })
+                .or(nonlrecursive_expression);
             let binary_operator1 = choice((just("->"),)).padded_by(token_separator.clone());
             let binary_expression1 = application_expression
                 .clone()

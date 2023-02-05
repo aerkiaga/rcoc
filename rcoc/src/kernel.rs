@@ -143,26 +143,6 @@ pub struct State {
 }
 
 impl Term {
-    fn create_application(
-        function_expression: &Expression,
-        parameter_list: &[Expression],
-        span: (usize, usize),
-    ) -> Term {
-        assert!(parameter_list.len() >= 1);
-        Term::Application {
-            function_term: Box::new(match parameter_list.len() {
-                1 => Self::new(function_expression),
-                _ => Self::create_application(
-                    function_expression,
-                    &parameter_list[..parameter_list.len() - 1],
-                    span,
-                ),
-            }),
-            parameter_term: Box::new(Self::new(&parameter_list[parameter_list.len() - 1])),
-            debug_context: TermDebugContext::CodeSpan(span),
-        }
-    }
-
     pub fn new(expression: &Expression) -> Self {
         match expression {
             Expression::Identifier(s, sp) => {
@@ -170,13 +150,13 @@ impl Term {
             }
             Expression::Application {
                 function_expression,
-                parameter_expressions,
+                parameter_expression,
                 span,
-            } => Self::create_application(
-                &function_expression,
-                parameter_expressions.as_slice(),
-                *span,
-            ),
+            } => Term::Application {
+                function_term: Box::new(Self::new(function_expression)),
+                parameter_term: Box::new(Self::new(parameter_expression)),
+                debug_context: TermDebugContext::CodeSpan(*span),
+            },
             Expression::Lambda {
                 binding,
                 value_expression,
