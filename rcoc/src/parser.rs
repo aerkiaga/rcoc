@@ -1,6 +1,8 @@
 use crate::ast::*;
 use chumsky::prelude::*;
 
+static mut TMP_VARIABLE_CURRENT_INDEX: Option<std::sync::Arc<std::sync::Mutex<u32>>> = None;
+
 fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
     let single_line_comment = just("//")
         .ignored()
@@ -110,9 +112,14 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 .foldr(|t, x| {
                     let new_span = (t.0.get_span().0, x.get_span().1);
                     match t.1 {
+                        // A -> B := ∀x:A.B
                         "->" => Expression::Forall {
                             binding_list: vec![Binding {
-                                identifier: "x".to_string(),
+                                identifier: format!("${}", {
+                                    let mut index = unsafe {TMP_VARIABLE_CURRENT_INDEX.as_ref()}.unwrap().lock().unwrap();
+                                    *index += 1;
+                                    *index - 1
+                                }).to_string(),
                                 type_expression: t.0,
                             }],
                             value_expression: Box::new(x),
@@ -146,6 +153,9 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
 }
 
 pub fn parse(input: &str) -> Result<Vec<Statement>, Vec<Simple<char>>> {
+    unsafe {
+        TMP_VARIABLE_CURRENT_INDEX = Some(std::sync::Arc::new(std::sync::Mutex::new(0)));
+    }
     let result = parser().parse_recovery(input);
     match result.0 {
         Some(x) => Ok(x),

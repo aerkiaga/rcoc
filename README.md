@@ -26,6 +26,6 @@ Which will output:
 ```
 proof_a = λT:Prop.λx:T.x
     :∀T:Prop.∀x:T.T
-proof_b = λT:Prop.λP:Prop.λx:T.λy:∀x:T.P.y x
-    :∀T:Prop.∀P:Prop.∀x:T.∀x:∀x:T.P.P
+proof_b = λT:Prop.λP:Prop.λx:T.λy:∀$7:T.P.y x
+    :∀T:Prop.∀P:Prop.∀$5:T.∀$4:∀$3:T.P.P
 ```

@@ -1,3 +1,4 @@
+#![feature(new_uninit)]
 mod ast;
 mod diagnostics;
 mod kernel;
