@@ -5,13 +5,13 @@ Written in Rust, proofs also employ a Rust-like syntax.
 At the moment, it doesn't have many features, but it does work.
 
 ```rust
-/* A proof that, for any statement T, *
- * if T is true then T is true.       */
+/* A proof that, for any three statements A, B and C, *
+ * if A implies B and B implies C, then A implies C */
 
-let proof_that_T_implies_T:
-    @(T: Prop, x: T) T
+let proof_implication_is_transitive:
+    @(A, B, C: Prop) {A -> B} -> {B -> C} -> {A -> C}
 =
-    |T: Prop, x: T| {|y: T| y}(x)
+    |A, B, C: Prop, ab: A -> B, bc: B -> C| |x: A| bc(ab(x))
 ;
 ```
 
@@ -24,6 +24,8 @@ cargo run -- test.rcoc
 Which will output:
 
 ```
-a = λT:Prop.λx:T.x
+proof_a = λT:Prop.λx:T.x
     :∀T:Prop.∀x:T.T
+proof_b = λT:Prop.λP:Prop.λx:T.λy:∀x:T.P.y x
+    :∀T:Prop.∀P:Prop.∀x:T.∀x:∀x:T.P.P
 ```

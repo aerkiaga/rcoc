@@ -1,15 +1,15 @@
 /* This is an example file to test rcoc */
 
 // basic syntax
-let a:
+let proof_a:
     @(T: Prop, x: T) T
 =
     |T: Prop, x: T| {|y: T| y}(x)
 ;
 
 // -> operator
-let c:
-    @(T: Prop) T -> T -> T
+let proof_b:
+    @(T, P: Prop) T -> {T -> P} -> P
 =
-    |T: Prop, x: T, y: T| y
+    |T, P: Prop, x: T, y: T -> P| y(x)
 ;
