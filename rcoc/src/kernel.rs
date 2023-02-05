@@ -466,7 +466,6 @@ impl State {
 
     pub fn update(self: &mut Self, statement: &Statement) -> Result<(), KernelError> {
         match statement {
-            Statement::Empty => {}
             Statement::Definition {
                 identifier,
                 type_expression,
@@ -499,7 +498,7 @@ pub fn execute(input: &Vec<Statement>) -> Result<(), KernelError> {
         state.update(statement)?;
     }
     for term in state.terms {
-        println!("{} = {:?}\n    :{:?}", term.0, term.1.1, term.1.0);
+        println!("{} = {:?}\n    :{:?}", term.0, term.1 .1, term.1 .0);
     }
     Ok(())
 }

@@ -49,6 +49,14 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 .clone()
                 .separated_by(just(',').ignored().padded_by(token_separator.clone()))
                 .at_least(1);
+            let parameter_lists = parameter_list
+                .delimited_by(
+                    just('(').ignored().padded_by(token_separator.clone()),
+                    just(')').ignored().padded_by(token_separator.clone()),
+                )
+                .separated_by(token_separator.clone())
+                .at_least(1)
+                .flatten();
             let identifier_expression = identifier
                 .clone()
                 .padded_by(token_separator.clone())
@@ -77,27 +85,19 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
             );
             let nonlrecursive_expression = choice((
                 identifier_expression,
+                brace_expression,
                 lambda_expression,
                 forall_expression,
-                brace_expression,
             ));
-            let application_expression = nonlrecursive_expression
-                .clone()
-                .then(
-                    parameter_list
-                        .delimited_by(
-                            just('(').ignored().padded_by(token_separator.clone()),
-                            just(')').ignored().padded_by(token_separator.clone()),
-                        )
-                        .separated_by(token_separator.clone())
-                        .at_least(1)
-                        .flatten(),
-                )
-                .map(|t| Expression::Application {
-                    function_expression: Box::new(t.0),
-                    parameter_expressions: t.1,
-                });
-            choice((application_expression, nonlrecursive_expression))
+            nonlrecursive_expression
+                .then(parameter_lists.map(|v| Some(v)).or(empty().to(None)))
+                .map(|t| match t.1 {
+                    None => t.0,
+                    Some(v) => Expression::Application {
+                        function_expression: Box::new(t.0),
+                        parameter_expressions: v,
+                    },
+                })
         },
     );
     let let_assignment = just("let")
@@ -113,21 +113,10 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
             type_expression: t.0 .1,
             value_expression: t.1,
         });
-    let statement = choice((let_assignment, empty().to(Statement::Empty)));
+    let statement = choice((let_assignment,));
     let statement_list = statement
-        .separated_by(just(';').padded_by(token_separator.clone()))
-        .map(|x| {
-            x.iter()
-                .filter(|p| {
-                    if let Statement::Empty = p {
-                        false
-                    } else {
-                        true
-                    }
-                })
-                .map(|p| p.clone())
-                .collect::<Vec<_>>()
-        });
+        .then_ignore(just(';').padded_by(token_separator.clone()))
+        .repeated();
     statement_list.then_ignore(end())
 }
 

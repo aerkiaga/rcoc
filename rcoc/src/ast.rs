@@ -23,7 +23,6 @@ pub enum Expression {
 
 #[derive(Clone, Debug)]
 pub enum Statement {
-    Empty,
     Definition {
         identifier: String,
         type_expression: Expression,

@@ -1,4 +1,5 @@
 mod ast;
+mod diagnostics;
 mod kernel;
 mod parser;
 
@@ -8,8 +9,10 @@ struct ProgramConfiguration {
 
 fn parse_args(args: &Vec<String>) -> ProgramConfiguration {
     match args.len() {
-        1 => ProgramConfiguration {file_to_open: None,},
-        _ => ProgramConfiguration {file_to_open: Some(args[1].clone()),},
+        1 => ProgramConfiguration { file_to_open: None },
+        _ => ProgramConfiguration {
+            file_to_open: Some(args[1].clone()),
+        },
     }
 }
 
@@ -20,14 +23,20 @@ fn main() {
         None => panic!("No input files"),
         Some(f) => f,
     };
-    let code = std::fs::read_to_string(file_to_open).expect("Could not read file");
+    let code = std::fs::read_to_string(&file_to_open).expect("Could not read file");
     let parser_result = parser::parse(&code);
     let ast = match parser_result {
         Ok(x) => x,
-        Err(e) => panic!("{:?}", e),
+        Err(e) => {
+            for error in e {
+                diagnostics::emit_parser_diagnostic(&error, &code, &file_to_open);
+            }
+            return;
+        }
     };
+    println!("{:?}", ast); //D
     match kernel::execute(&ast) {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => panic!("{:?}", e),
     };
 }
