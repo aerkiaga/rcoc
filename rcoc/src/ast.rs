@@ -24,6 +24,29 @@ pub enum Expression {
     },
 }
 
+impl Expression {
+    pub fn get_span(self: &Self) -> (usize, usize) {
+        match self {
+            Self::Identifier(_, sp) => *sp,
+            Self::Application {
+                function_expression: _,
+                parameter_expressions: _,
+                span,
+            } => *span,
+            Self::Lambda {
+                binding_list: _,
+                value_expression: _,
+                span,
+            } => *span,
+            Self::Forall {
+                binding_list: _,
+                value_expression: _,
+                span,
+            } => *span,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Statement {
     Definition {

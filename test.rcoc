@@ -1,6 +1,15 @@
-/*This is an example file to test rcoc*/
+/* This is an example file to test rcoc */
+
+// basic syntax
 let a:
     @(T: Prop, x: T) T
 =
     |T: Prop, x: T| {|y: T| y}(x)
+;
+
+// -> operator
+let c:
+    @(T: Prop) T -> T -> T
+=
+    |T: Prop, x: T, y: T| y
 ;

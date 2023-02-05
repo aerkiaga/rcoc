@@ -5,7 +5,6 @@ use chumsky::error::*;
 pub fn emit_parser_diagnostic(error: &Simple<char>, code: &String, source_id: &String) {
     let mut color_generator = ColorGenerator::new();
     let color1 = color_generator.next();
-    let color2 = color_generator.next();
     let error_span = error.span();
     let error_reason = error.reason();
     let error_expected = error
@@ -19,7 +18,7 @@ pub fn emit_parser_diagnostic(error: &Simple<char>, code: &String, source_id: &S
     for n in 0..(error_expected.len() - 1) {
         expected_str.push_str(&format!(
             "{}",
-            error_expected[n].unwrap().to_string().fg(color1)
+            error_expected[n].unwrap().to_string().fg(Color::Green)
         ));
         if n < (error_expected.len() - 2) {
             expected_str.push_str(", ");
@@ -33,7 +32,7 @@ pub fn emit_parser_diagnostic(error: &Simple<char>, code: &String, source_id: &S
         error_expected[error_expected.len() - 1]
             .unwrap()
             .to_string()
-            .fg(color1)
+            .fg(Color::Green)
     ));
     match error_reason {
         SimpleReason::Unexpected => {
@@ -54,7 +53,7 @@ pub fn emit_parser_diagnostic(error: &Simple<char>, code: &String, source_id: &S
                 .with_label(
                     Label::new((source_id, error_span))
                         .with_message(expected_str)
-                        .with_color(color2),
+                        .with_color(color1),
                 )
                 .with_label(
                     Label::new((source_id, span.clone()))
@@ -127,7 +126,7 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
                 .finish()
                 .print((source_id, Source::from(code)))
                 .unwrap();
-        },
+        }
         KernelError::InvalidApplication {
             nonfunction_type,
             nonfunction_context,
@@ -158,7 +157,7 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
                 .finish()
                 .print((source_id, Source::from(code)))
                 .unwrap();
-        },
+        }
         KernelError::NonmatchingDefinition {
             expected_type,
             observed_type,
@@ -191,6 +190,6 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
                 .finish()
                 .print((source_id, Source::from(code)))
                 .unwrap();
-        },
+        }
     }
 }

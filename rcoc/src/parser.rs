@@ -91,7 +91,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 lambda_expression,
                 forall_expression,
             ));
-            nonlrecursive_expression
+            let application_expression = nonlrecursive_expression
                 .then(parameter_lists.map(|v| Some(v)).or(empty().to(None)))
                 .map_with_span(|t, sp| match t.1 {
                     None => t.0,
@@ -100,7 +100,28 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                         parameter_expressions: v,
                         span: (sp.start(), sp.end()),
                     },
-                })
+                });
+            let binary_operator1 = choice((just("->"),)).padded_by(token_separator.clone());
+            let binary_expression1 = application_expression
+                .clone()
+                .then(binary_operator1)
+                .repeated()
+                .then(application_expression)
+                .foldr(|t, x| {
+                    let new_span = (t.0.get_span().0, x.get_span().1);
+                    match t.1 {
+                        "->" => Expression::Forall {
+                            binding_list: vec![Binding {
+                                identifier: "x".to_string(),
+                                type_expression: t.0,
+                            }],
+                            value_expression: Box::new(x),
+                            span: new_span,
+                        },
+                        _ => panic!(),
+                    }
+                });
+            binary_expression1
         },
     );
     let let_assignment = just("let")

@@ -727,11 +727,11 @@ impl State {
                 type_term.infer_type(&self)?;
                 type_term.normalize();
                 let mut value_term = Term::new(value_expression);
-                let mut expected_type = value_term.infer_type(&self)?;
+                let mut actual_type = value_term.infer_type(&self)?;
                 value_term.normalize();
-                expected_type.full_normalize();
-                let mut actual_type = type_term.clone();
                 actual_type.full_normalize();
+                let mut expected_type = type_term.clone();
+                expected_type.full_normalize();
                 if expected_type != actual_type {
                     return Err(KernelError::NonmatchingDefinition {
                         expected_type: expected_type,
