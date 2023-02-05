@@ -25,7 +25,15 @@ Which will output:
 
 ```
 proof_a = λT:Prop.λx:T.x
-    :∀T:Prop.∀x:T.T
-proof_b = λT:Prop.λP:Prop.λx:T.λy:∀$7:T.P.y x
-    :∀T:Prop.∀P:Prop.∀$5:T.∀$4:∀$3:T.P.P
+    :∀T:Prop.T→T
+proof_b = λT:Prop.λP:Prop.λx:T.λy:T→P.y x
+    :∀T:Prop.∀P:Prop.T→(T→P)→P
 ```
+
+RCoC uses the amazing [chumsky](https://github.com/zesterer/chumsky)
+and [ariadne](https://github.com/zesterer/ariadne) crates by @zesterer
+to parse the input and produce meaningful error diagnostics.
+
+The Calculus of Constructions was devised by Thierry Coquand,
+and serves as the basis for [Coq](https://github.com/coq/coq)
+and other proof assistants.

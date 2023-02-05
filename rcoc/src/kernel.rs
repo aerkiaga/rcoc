@@ -696,12 +696,30 @@ impl std::fmt::Debug for Term {
                 value_term,
                 debug_context: _,
             } => {
-                f.write_str("∀")?;
-                f.write_str(binding_identifier)?;
-                f.write_str(":")?;
-                binding_type.fmt(f)?;
-                f.write_str(".")?;
-                value_term.fmt(f)?;
+                if !value_term.contains(binding_identifier) {
+                    // special case: A -> B := ∀x:A.B
+                    let parenthesize_first = match **binding_type {
+                        Term::Lambda { .. } | Term::Forall { .. } => true,
+                        _ => false,
+                    };
+                    if parenthesize_first {
+                        f.write_str("(")?;
+                    }
+                    binding_type.fmt(f)?;
+                    if parenthesize_first {
+                        f.write_str(")")?;
+                    }
+                    f.write_str("→")?;
+                    value_term.fmt(f)?;
+                } else {
+                    // ∀x:A.B where B contains x
+                    f.write_str("∀")?;
+                    f.write_str(binding_identifier)?;
+                    f.write_str(":")?;
+                    binding_type.fmt(f)?;
+                    f.write_str(".")?;
+                    value_term.fmt(f)?;
+                }
             }
         }
         Result::Ok(())
