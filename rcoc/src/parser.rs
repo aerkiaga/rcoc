@@ -27,16 +27,17 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
         .or(just('_'))
         .then(
             filter(|c| char::is_alphabetic(*c))
-                .or(one_of(
-                    "_'′″‴‵‶‷⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁱⁿ₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓₔₕₖₗₘₙₚₛₜᵢᵣᵤᵥᵦᵧᵨᵩᵪ",
-                ))
+                .or(just('_'))
                 .repeated()
                 .collect::<String>(),
         )
-        .map_with_span(|t, sp: std::ops::Range<usize>| {
+        .try_map(|t, sp: std::ops::Range<usize>| {
             let mut s = String::from(t.0);
             s.push_str(&t.1);
-            (s, (sp.start(), sp.end()))
+            match &*s {
+                "exists" => Err(Simple::custom(sp, "'exists' is a reserved word")),
+                _ => Ok((s, (sp.start(), sp.end()))),
+            }
         });
     let expression = recursive(
         |nested_expression: Recursive<char, Expression, Simple<char>>| {
@@ -52,7 +53,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                         .map(|x| Binding {
                             identifier: x.0.clone(),
                             type_expression: Box::new(t.1.clone()),
-                            span: (x.1.0, t.1.get_span().1),
+                            span: (x.1 .0, t.1.get_span().1),
                         })
                         .collect::<Vec<_>>()
                 });
@@ -119,7 +120,10 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                     Expression::Forall {
                         binding: Binding {
                             identifier: y.clone(),
-                            type_expression: Box::new(Expression::Identifier("Prop".to_string(), (0, 0))),
+                            type_expression: Box::new(Expression::Identifier(
+                                "Prop".to_string(),
+                                (0, 0),
+                            )),
                             span: (0, 0),
                         },
                         value_expression: Box::new(Expression::Forall {
@@ -137,7 +141,10 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                                             type_expression: Box::new(x),
                                             span: b_span,
                                         },
-                                        value_expression: Box::new(Expression::Identifier(y.clone(), (0, 0))),
+                                        value_expression: Box::new(Expression::Identifier(
+                                            y.clone(),
+                                            (0, 0),
+                                        )),
                                         span: b_span,
                                     }),
                                     span: new_span,
@@ -209,7 +216,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
         .then_ignore(just("=").padded_by(token_separator.clone()))
         .then(expression.clone().padded_by(token_separator.clone()))
         .map_with_span(|t, sp| Statement::Definition {
-            identifier: t.0 .0 .1.0,
+            identifier: t.0 .0 .1 .0,
             type_expression: t.0 .1,
             value_expression: t.1,
             span: (sp.start(), sp.end()),
