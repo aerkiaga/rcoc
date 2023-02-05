@@ -36,6 +36,6 @@ fn main() {
     };
     match kernel::execute(&ast) {
         Ok(_) => {}
-        Err(e) => panic!("{:?}", e),
+        Err(e) => diagnostics::emit_kernel_diagnostic(&e, &code, &file_to_open),
     };
 }

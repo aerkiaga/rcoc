@@ -6,18 +6,21 @@ pub struct Binding {
 
 #[derive(Clone, Debug)]
 pub enum Expression {
-    Identifier(String),
+    Identifier(String, (usize, usize)),
     Application {
         function_expression: Box<Expression>,
         parameter_expressions: Vec<Expression>,
+        span: (usize, usize),
     },
     Lambda {
         binding_list: Vec<Binding>,
         value_expression: Box<Expression>,
+        span: (usize, usize),
     },
     Forall {
         binding_list: Vec<Binding>,
         value_expression: Box<Expression>,
+        span: (usize, usize),
     },
 }
 
@@ -27,5 +30,6 @@ pub enum Statement {
         identifier: String,
         type_expression: Expression,
         value_expression: Expression,
+        span: (usize, usize),
     },
 }

@@ -60,14 +60,15 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
             let identifier_expression = identifier
                 .clone()
                 .padded_by(token_separator.clone())
-                .map(|s| Expression::Identifier(s));
+                .map_with_span(|s, sp| Expression::Identifier(s, (sp.start(), sp.end())));
             let lambda_expression = binding_list
                 .clone()
                 .padded_by(just('|').padded_by(token_separator.clone()))
                 .then(nested_expression.clone())
-                .map(|t| Expression::Lambda {
+                .map_with_span(|t, sp| Expression::Lambda {
                     binding_list: t.0,
                     value_expression: Box::new(t.1),
+                    span: (sp.start(), sp.end()),
                 });
             let forall_expression = just("@(")
                 .ignored()
@@ -75,9 +76,10 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 .then(binding_list.clone())
                 .then_ignore(just(')').padded_by(token_separator.clone()))
                 .then(nested_expression.clone())
-                .map(|t| Expression::Forall {
+                .map_with_span(|t, sp| Expression::Forall {
                     binding_list: t.0 .1,
                     value_expression: Box::new(t.1),
+                    span: (sp.start(), sp.end()),
                 });
             let brace_expression = nested_expression.clone().delimited_by(
                 just('{').ignored().padded_by(token_separator.clone()),
@@ -91,11 +93,12 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
             ));
             nonlrecursive_expression
                 .then(parameter_lists.map(|v| Some(v)).or(empty().to(None)))
-                .map(|t| match t.1 {
+                .map_with_span(|t, sp| match t.1 {
                     None => t.0,
                     Some(v) => Expression::Application {
                         function_expression: Box::new(t.0),
                         parameter_expressions: v,
+                        span: (sp.start(), sp.end()),
                     },
                 })
         },
@@ -108,10 +111,11 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
         .then(expression.clone().padded_by(token_separator.clone()))
         .then_ignore(just("=").padded_by(token_separator.clone()))
         .then(expression.clone().padded_by(token_separator.clone()))
-        .map(|t| Statement::Definition {
+        .map_with_span(|t, sp| Statement::Definition {
             identifier: t.0 .0 .1,
             type_expression: t.0 .1,
             value_expression: t.1,
+            span: (sp.start(), sp.end()),
         });
     let statement = choice((let_assignment,));
     let statement_list = statement
