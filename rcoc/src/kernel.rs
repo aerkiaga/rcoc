@@ -143,40 +143,6 @@ pub struct State {
 }
 
 impl Term {
-    fn create_lambda(
-        binding_list: &[Binding],
-        value_expression: &Expression,
-        span: (usize, usize),
-    ) -> Term {
-        assert!(binding_list.len() >= 1);
-        Term::Lambda {
-            binding_identifier: binding_list[0].identifier.clone(),
-            binding_type: Box::new(Self::new(&binding_list[0].type_expression)),
-            value_term: Box::new(match binding_list.len() {
-                1 => Self::new(value_expression),
-                _ => Self::create_lambda(&binding_list[1..], value_expression, span),
-            }),
-            debug_context: TermDebugContext::CodeSpan(span),
-        }
-    }
-
-    fn create_forall(
-        binding_list: &[Binding],
-        value_expression: &Expression,
-        span: (usize, usize),
-    ) -> Term {
-        assert!(binding_list.len() >= 1);
-        Term::Forall {
-            binding_identifier: binding_list[0].identifier.clone(),
-            binding_type: Box::new(Self::new(&binding_list[0].type_expression)),
-            value_term: Box::new(match binding_list.len() {
-                1 => Self::new(value_expression),
-                _ => Self::create_forall(&binding_list[1..], value_expression, span),
-            }),
-            debug_context: TermDebugContext::CodeSpan(span),
-        }
-    }
-
     fn create_application(
         function_expression: &Expression,
         parameter_list: &[Expression],
@@ -212,15 +178,25 @@ impl Term {
                 *span,
             ),
             Expression::Lambda {
-                binding_list,
+                binding,
                 value_expression,
                 span,
-            } => Self::create_lambda(binding_list.as_slice(), &value_expression, *span),
+            } => Term::Lambda {
+                binding_identifier: binding.identifier.clone(),
+                binding_type: Box::new(Self::new(&binding.type_expression)),
+                value_term: Box::new(Self::new(value_expression)),
+                debug_context: TermDebugContext::CodeSpan(*span),
+            },
             Expression::Forall {
-                binding_list,
+                binding,
                 value_expression,
                 span,
-            } => Self::create_forall(binding_list.as_slice(), &value_expression, *span),
+            } => Term::Forall {
+                binding_identifier: binding.identifier.clone(),
+                binding_type: Box::new(Self::new(&binding.type_expression)),
+                value_term: Box::new(Self::new(value_expression)),
+                debug_context: TermDebugContext::CodeSpan(*span),
+            },
         }
     }
 
@@ -697,7 +673,7 @@ impl std::fmt::Debug for Term {
                 debug_context: _,
             } => {
                 if !value_term.contains(binding_identifier) {
-                    // special case: A -> B := ∀x:A.B
+                    // special case: A->B := ∀x:A.B
                     let parenthesize_first = match **binding_type {
                         Term::Lambda { .. } | Term::Forall { .. } => true,
                         _ => false,

@@ -28,6 +28,8 @@ proof_a = λT:Prop.λx:T.x
     :∀T:Prop.T→T
 proof_b = λT:Prop.λP:Prop.λx:T.λy:T→P.y x
     :∀T:Prop.∀P:Prop.T→(T→P)→P
+proof_c = λT:Prop.λQ:Prop.λh:∀P:Prop.(T→P)→Q.h T λx:T.x
+    :∀T:Prop.∀$21:Prop.(∀P:Prop.(T→P)→$21)→$21
 ```
 
 RCoC uses the amazing [chumsky](https://github.com/zesterer/chumsky)

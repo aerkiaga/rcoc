@@ -13,3 +13,12 @@ let proof_b:
 =
     |T, P: Prop, x: T, y: T -> P| y(x)
 ;
+
+// exists() operator
+let proof_c:
+    @(T: Prop) exists(P: Prop) T -> P
+=
+    |T, Q: Prop|
+    |h: @(P: Prop) {T -> P} -> Q|
+    h(T)(|x: T| x)
+;

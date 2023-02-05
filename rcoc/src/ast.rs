@@ -1,7 +1,8 @@
 #[derive(Clone, Debug)]
 pub struct Binding {
     pub identifier: String,
-    pub type_expression: Expression,
+    pub type_expression: Box<Expression>,
+    pub span: (usize, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -13,12 +14,12 @@ pub enum Expression {
         span: (usize, usize),
     },
     Lambda {
-        binding_list: Vec<Binding>,
+        binding: Binding,
         value_expression: Box<Expression>,
         span: (usize, usize),
     },
     Forall {
-        binding_list: Vec<Binding>,
+        binding: Binding,
         value_expression: Box<Expression>,
         span: (usize, usize),
     },
@@ -34,12 +35,12 @@ impl Expression {
                 span,
             } => *span,
             Self::Lambda {
-                binding_list: _,
+                binding: _,
                 value_expression: _,
                 span,
             } => *span,
             Self::Forall {
-                binding_list: _,
+                binding: _,
                 value_expression: _,
                 span,
             } => *span,
