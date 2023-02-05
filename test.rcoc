@@ -1,0 +1,6 @@
+/*This is an example file to test rcoc*/
+let a:
+    @(T: Prop, x: T) T
+=
+    |T: Prop, x: T| {|y: T| y}(x)
+;
