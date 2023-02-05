@@ -15,7 +15,10 @@ pub fn emit_parser_diagnostic(error: &Simple<char>, code: &String, source_id: &S
         .collect::<Vec<_>>();
     let mut expected_str = String::from("Expected ");
     for n in 0..(error_expected.len() - 1) {
-        expected_str.push_str(&format!("{}", error_expected[n].unwrap().to_string().fg(color1)));
+        expected_str.push_str(&format!(
+            "{}",
+            error_expected[n].unwrap().to_string().fg(color1)
+        ));
         if n < (error_expected.len() - 2) {
             expected_str.push_str(", ");
         }
@@ -25,13 +28,20 @@ pub fn emit_parser_diagnostic(error: &Simple<char>, code: &String, source_id: &S
     }
     expected_str.push_str(&format!(
         "{}",
-        error_expected[error_expected.len() - 1].unwrap().to_string().fg(color1)
+        error_expected[error_expected.len() - 1]
+            .unwrap()
+            .to_string()
+            .fg(color1)
     ));
     match error_reason {
         SimpleReason::Unexpected => {
             Report::build(ReportKind::Error, source_id, 0)
                 .with_message("unexpected token")
-                .with_label(Label::new((source_id, error_span)).with_message(expected_str))
+                .with_label(
+                    Label::new((source_id, error_span))
+                        .with_message(expected_str)
+                        .with_color(Color::Red),
+                )
                 .finish()
                 .print((source_id, Source::from(code)))
                 .unwrap();
@@ -41,7 +51,9 @@ pub fn emit_parser_diagnostic(error: &Simple<char>, code: &String, source_id: &S
                 .with_message("unclosed delimiter")
                 .with_label(Label::new((source_id, error_span)).with_message(expected_str))
                 .with_label(
-                    Label::new((source_id, span.clone())).with_message("opening delimiter here"),
+                    Label::new((source_id, span.clone()))
+                        .with_message("opening delimiter here")
+                        .with_color(Color::Red),
                 )
                 .finish()
                 .print((source_id, Source::from(code)))

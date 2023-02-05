@@ -34,7 +34,6 @@ fn main() {
             return;
         }
     };
-    println!("{:?}", ast); //D
     match kernel::execute(&ast) {
         Ok(_) => {}
         Err(e) => panic!("{:?}", e),
