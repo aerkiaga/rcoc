@@ -57,3 +57,16 @@ pub enum Statement {
         span: (usize, usize),
     },
 }
+
+pub static mut TMP_VARIABLE_CURRENT_INDEX: Option<std::sync::Arc<std::sync::Mutex<u32>>> = None;
+
+pub fn get_tmp_identifier() -> String {
+    format!("${}", {
+        let mut index = unsafe { TMP_VARIABLE_CURRENT_INDEX.as_ref() }
+            .unwrap()
+            .lock()
+            .unwrap();
+        *index += 1;
+        *index - 1
+    })
+}

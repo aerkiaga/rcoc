@@ -1,18 +1,6 @@
 use crate::ast::*;
+use crate::extensions;
 use chumsky::prelude::*;
-
-static mut TMP_VARIABLE_CURRENT_INDEX: Option<std::sync::Arc<std::sync::Mutex<u32>>> = None;
-
-fn get_tmp_identifier() -> String {
-    format!("${}", {
-        let mut index = unsafe { TMP_VARIABLE_CURRENT_INDEX.as_ref() }
-            .unwrap()
-            .lock()
-            .unwrap();
-        *index += 1;
-        *index - 1
-    })
-}
 
 fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
     let single_line_comment = just("//")
@@ -111,52 +99,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 .map(|t| t.1)
                 .then_ignore(just(')').padded_by(token_separator.clone()))
                 .then(nested_expression.clone())
-                .foldr(|t, x| {
-                    let b_span = x.get_span();
-                    let new_span = (t.span.0, b_span.1);
-                    let y = get_tmp_identifier();
-                    let z = get_tmp_identifier();
-                    let w = get_tmp_identifier();
-                    Expression::Forall {
-                        binding: Binding {
-                            identifier: y.clone(),
-                            type_expression: Box::new(Expression::Identifier(
-                                "Prop".to_string(),
-                                (0, 0),
-                            )),
-                            span: (0, 0),
-                        },
-                        value_expression: Box::new(Expression::Forall {
-                            binding: Binding {
-                                identifier: z,
-                                type_expression: Box::new(Expression::Forall {
-                                    binding: Binding {
-                                        identifier: t.identifier,
-                                        type_expression: Box::new(*t.type_expression),
-                                        span: t.span,
-                                    },
-                                    value_expression: Box::new(Expression::Forall {
-                                        binding: Binding {
-                                            identifier: w,
-                                            type_expression: Box::new(x),
-                                            span: b_span,
-                                        },
-                                        value_expression: Box::new(Expression::Identifier(
-                                            y.clone(),
-                                            (0, 0),
-                                        )),
-                                        span: b_span,
-                                    }),
-                                    span: new_span,
-                                }),
-                                span: new_span,
-                            },
-                            value_expression: Box::new(Expression::Identifier(y, (0, 0))),
-                            span: new_span,
-                        }),
-                        span: new_span,
-                    }
-                });
+                .foldr(|t, x| extensions::translate_exists(t, x));
             let brace_expression = nested_expression.clone().delimited_by(
                 just('{').ignored().padded_by(token_separator.clone()),
                 just('}').ignored().padded_by(token_separator.clone()),
@@ -186,25 +129,10 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 .then(binary_operator1)
                 .repeated()
                 .then(application_expression)
-                .foldr(|t, x| {
-                    let new_span = (t.0.get_span().0, x.get_span().1);
-                    match t.1 {
-                        // alias: A->B := ∀x:A.B
-                        "->" => Expression::Forall {
-                            binding: {
-                                let new_span = t.0.get_span();
-                                Binding {
-                                    identifier: get_tmp_identifier(),
-                                    type_expression: Box::new(t.0),
-                                    // the span of x:A is just that of A
-                                    span: new_span,
-                                }
-                            },
-                            value_expression: Box::new(x),
-                            span: new_span,
-                        },
-                        _ => panic!(),
-                    }
+                .foldr(|t, x| match t.1 {
+                    // alias: A->B := ∀x:A.B
+                    "->" => extensions::translate_implication(t.0, x),
+                    _ => panic!(),
                 });
             binary_expression1
         },
