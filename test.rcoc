@@ -50,3 +50,19 @@ let proof_e:
         bq(b)
     )
 ;
+
+// ^ operator
+let proof_f:
+    @(A: Prop) A /\ ^A -> @(P: Prop) P
+=
+    |A: Prop|
+    |h: @(Q:Prop) {A -> {A -> @(R:Prop) R} -> Q} -> Q|
+    h(@(P: Prop) P)(
+        |a: A, not_a: A -> @(R:Prop) R| not_a(a)
+    )
+;
+
+
+
+
+

@@ -123,10 +123,21 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                     }
                 })
                 .or(nonlrecursive_expression);
+            let unary_operator1 = choice((just("^"),)).padded_by(token_separator.clone());
+            let unary_expression1 = unary_operator1
+                .repeated()
+                .then(application_expression.clone())
+                .foldr(|s, x| match s {
+                    // alias: ¬A := ∀x:A.∀y:Prop.y
+                    // disappointingly the ¬ symbol isn't on many keyboards;
+                    // ^ will do the job instead for intuitionistic negation
+                    "^" => extensions::translate_negation(x),
+                    _ => panic!(),
+                });
             let binary_operator1 = choice((just("/\\"),)).padded_by(token_separator.clone());
-            let binary_expression1 = application_expression
+            let binary_expression1 = unary_expression1
                 .clone()
-                .then(binary_operator1.then(application_expression).repeated())
+                .then(binary_operator1.then(unary_expression1).repeated())
                 .map(|t| {
                     // we parse as if left folding as it's much faster,
                     // then translate to right folding

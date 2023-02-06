@@ -22,6 +22,38 @@ pub fn translate_implication(a: Expression, b: Expression) -> Expression {
     }
 }
 
+/// Translates ¬A
+/// into ∀x:A.∀y:Prop.y
+///
+/// Applied when parsing `^...`
+///
+pub fn translate_negation(a: Expression) -> Expression {
+    let a_span = a.get_span();
+    let x = get_tmp_identifier();
+    let y = get_tmp_identifier();
+    Expression::Forall {
+        binding: {
+            Binding {
+                identifier: x,
+                type_expression: Box::new(a),
+                span: a_span,
+            }
+        },
+        value_expression: Box::new(Expression::Forall {
+            binding: {
+                Binding {
+                    identifier: y.clone(),
+                    type_expression: Box::new(Expression::Identifier("Prop".to_string(), (0, 0))),
+                    span: (0, 0),
+                }
+            },
+            value_expression: Box::new(Expression::Identifier(y, (0, 0))),
+            span: a_span,
+        }),
+        span: a_span,
+    }
+}
+
 /// Translates A∧B
 /// into ∀x:Prop.∀y:(∀z:A.∀w:B.x).x
 ///
