@@ -29,5 +29,24 @@ let proof_d:
 =
     |A, B: Prop|
     |h: @(P: Prop) {A -> B -> P} -> P|
-    h(A)(|x: A, y: B| x)
+    h(A, |x: A, y: B| x)
+;
+
+// \/ operator
+let proof_d:
+    @(A, B: Prop) A \/ B -> B \/ A
+=
+    |A, B: Prop|
+    |h: @(P: Prop) {A -> P} -> {B -> P} -> P|
+    h(B \/ A)(
+        // proof that A -> B \/ A
+        |a: A, Q: Prop|
+        |_: B -> Q, aq: A -> Q|
+        aq(a)
+    )(
+        // proof that B -> B \/ A
+        |b: B, Q: Prop|
+        |bq: B -> Q, _: A -> Q|
+        bq(b)
+    )
 ;

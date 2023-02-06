@@ -78,6 +78,65 @@ pub fn translate_conjunction(a: Expression, b: Expression) -> Expression {
     }
 }
 
+/// Translates A∨B
+/// into ∀x:Prop.∀y:(∀z:A.x).∀w:(∀v:B.x).x
+///
+/// Applied when parsing `... \/ ... `
+///
+pub fn translate_disjunction(a: Expression, b: Expression) -> Expression {
+    let a_span = a.get_span();
+    let b_span = b.get_span();
+    let new_span = (a_span.0, b_span.1);
+    let x = get_tmp_identifier();
+    let y = get_tmp_identifier();
+    let z = get_tmp_identifier();
+    let w = get_tmp_identifier();
+    let v = get_tmp_identifier();
+    Expression::Forall {
+        binding: {
+            Binding {
+                identifier: x.clone(),
+                type_expression: Box::new(Expression::Identifier("Prop".to_string(), (0, 0))),
+                span: (0, 0),
+            }
+        },
+        value_expression: Box::new(Expression::Forall {
+            binding: Binding {
+                identifier: y,
+                type_expression: Box::new(Expression::Forall {
+                    binding: Binding {
+                        identifier: z,
+                        type_expression: Box::new(a),
+                        span: a_span,
+                    },
+                    value_expression: Box::new(Expression::Identifier(x.clone(), (0, 0))),
+                    span: a_span,
+                }),
+                span: a_span,
+            },
+            value_expression: Box::new(Expression::Forall {
+                binding: Binding {
+                    identifier: w,
+                    type_expression: Box::new(Expression::Forall {
+                        binding: Binding {
+                            identifier: v,
+                            type_expression: Box::new(b),
+                            span: b_span,
+                        },
+                        value_expression: Box::new(Expression::Identifier(x.clone(), (0, 0))),
+                        span: b_span,
+                    }),
+                    span: b_span,
+                },
+                value_expression: Box::new(Expression::Identifier(x, (0, 0))),
+                span: b_span,
+            }),
+            span: new_span,
+        }),
+        span: new_span,
+    }
+}
+
 /// Translates ∃x:A.B
 /// into ∀y:Prop.∀z:(∀x:A.(∀w:B.y)).y
 ///

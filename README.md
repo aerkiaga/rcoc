@@ -33,6 +33,8 @@ proof_c = λT:Prop.λQ:Prop.λh:∀P:Prop.(T→P)→Q.h T λx:T.x
     :∀T:Prop.∀$23:Prop.(∀P:Prop.(T→P)→$23)→$23
 proof_d = λA:Prop.λB:Prop.λh:∀P:Prop.(A→B→P)→P.h A λx:A.λy:B.x
     :∀A:Prop.∀B:Prop.(∀$55:Prop.(A→B→$55)→$55)→A
+proof_d = λA:Prop.λB:Prop.λh:∀P:Prop.(A→P)→(B→P)→P.h ∀$233:Prop.(B→$233)→(A→$233)→$233 λa:A.λQ:Prop.λ_:B→Q.λaq:A→Q.aq a λb:B.λQ:Prop.λbq:B→Q.λ_:A→Q.bq b
+    :∀A:Prop.∀B:Prop.(∀$111:Prop.(A→$111)→(B→$111)→$111)→∀$116:Prop.(B→$116)→(A→$116)→$116
 ```
 
 ## Features

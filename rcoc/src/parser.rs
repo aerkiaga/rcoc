@@ -144,10 +144,31 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                     "/\\" => extensions::translate_conjunction(t.0, x),
                     _ => panic!(),
                 });
-            let binary_operator2 = choice((just("->"),)).padded_by(token_separator.clone());
+            let binary_operator2 = choice((just("\\/"),)).padded_by(token_separator.clone());
             let binary_expression2 = binary_expression1
                 .clone()
                 .then(binary_operator2.then(binary_expression1).repeated())
+                .map(|t| {
+                    // we parse as if left folding as it's much faster,
+                    // then translate to right folding
+                    if t.1.len() == 0 {
+                        return (vec![], t.0);
+                    }
+                    let mut outv = vec![(t.0, t.1[0].0)];
+                    for n in 0..(t.1.len() - 1) {
+                        outv.push((t.1[n].1.clone(), t.1[n + 1].0));
+                    }
+                    (outv, t.1[t.1.len() - 1].1.clone())
+                })
+                .foldr(|t, x| match t.1 {
+                    // alias: A∨B := ∀x:Prop.∀y:(∀z:A.x).∀w:(∀v:B.x).x
+                    "\\/" => extensions::translate_disjunction(t.0, x),
+                    _ => panic!(),
+                });
+            let binary_operator3 = choice((just("->"),)).padded_by(token_separator.clone());
+            let binary_expression3 = binary_expression2
+                .clone()
+                .then(binary_operator3.then(binary_expression2).repeated())
                 .map(|t| {
                     // we parse as if left folding as it's much faster,
                     // then translate to right folding
@@ -165,7 +186,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                     "->" => extensions::translate_implication(t.0, x),
                     _ => panic!(),
                 });
-            binary_expression2
+            binary_expression3
         },
     ).boxed();
     let let_assignment = just("let")
