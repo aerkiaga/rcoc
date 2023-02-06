@@ -33,7 +33,7 @@ let proof_d:
 ;
 
 // \/ operator
-let proof_d:
+let proof_e:
     @(A, B: Prop) A \/ B -> B \/ A
 =
     |A, B: Prop|
