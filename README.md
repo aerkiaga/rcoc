@@ -44,6 +44,7 @@ Core language:
 Syntax extensions:
  - [x] `->` operator
  - [x] `/\` operator
+ - [x] `\/` operator
  - [x] `exists()` operator
 
 ## Acknowledgements
