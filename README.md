@@ -48,7 +48,7 @@ Syntax extensions:
 
 | Category | Syntax elements |
 | --- | --- |
-| CoC terms | `A(B)` `|x: A| B` `@(x: A) B` `Prop` `Type(n)` `{A}` |
+| CoC terms | `A(B)` `\|x: A\| B` `@(x: A) B` `Prop` `Type(n)` `{A}` |
 | CoC sentences | `let a: A = B;` |
 | Intuitionistic logic | `A -> B` `False` `^A` `A /\ B` `A \/ B` `exists(x: A) B` |
 
