@@ -1,8 +1,13 @@
 #![feature(new_uninit)]
+/// Abstract Syntax Tree data types and utilities
 mod ast;
+/// Error diagnostic generation code
 mod diagnostics;
+/// Translation routines for operators outside CoC
 mod extensions;
+/// Proof checking kernel
 mod kernel;
+/// Language syntax definition
 mod parser;
 
 struct ProgramConfiguration {

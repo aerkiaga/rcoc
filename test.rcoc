@@ -22,3 +22,12 @@ let proof_c:
     |h: @(P: Prop) {T -> P} -> Q|
     h(T)(|x: T| x)
 ;
+
+// /\ operator
+let proof_d:
+    @(A, B: Prop) A /\ B -> A
+=
+    |A, B: Prop|
+    |h: @(P: Prop) {A -> B -> P} -> P|
+    h(A)(|x: A, y: B| x)
+;

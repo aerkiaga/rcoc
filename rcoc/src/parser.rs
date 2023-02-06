@@ -123,18 +123,29 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                     }
                 })
                 .or(nonlrecursive_expression);
-            let binary_operator1 = choice((just("->"),)).padded_by(token_separator.clone());
+            let binary_operator1 = choice((just("/\\"),)).padded_by(token_separator.clone());
             let binary_expression1 = application_expression
                 .clone()
                 .then(binary_operator1)
                 .repeated()
                 .then(application_expression)
                 .foldr(|t, x| match t.1 {
+                    // alias: A∧B := ∀x:Prop.∀y:∀z:A.∀w:B.x.x
+                    "/\\" => extensions::translate_conjunction(t.0, x),
+                    _ => panic!(),
+                });
+            let binary_operator2 = choice((just("->"),)).padded_by(token_separator.clone());
+            let binary_expression2 = binary_expression1
+                .clone()
+                .then(binary_operator2)
+                .repeated()
+                .then(binary_expression1)
+                .foldr(|t, x| match t.1 {
                     // alias: A->B := ∀x:A.B
                     "->" => extensions::translate_implication(t.0, x),
                     _ => panic!(),
                 });
-            binary_expression1
+            binary_expression2
         },
     );
     let let_assignment = just("let")
