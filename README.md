@@ -30,9 +30,9 @@ proof_a = λT:Prop.λx:T.x
 proof_b = λT:Prop.λP:Prop.λx:T.λy:T→P.y x
     :∀T:Prop.∀P:Prop.T→(T→P)→P
 proof_c = λT:Prop.λQ:Prop.λh:∀P:Prop.(T→P)→Q.h T λx:T.x
-    :∀T:Prop.∀$309:Prop.(∀P:Prop.(T→P)→$309)→$309
+    :∀T:Prop.∀$23:Prop.(∀P:Prop.(T→P)→$23)→$23
 proof_d = λA:Prop.λB:Prop.λh:∀P:Prop.(A→B→P)→P.h A λx:A.λy:B.x
-    :∀A:Prop.∀B:Prop.(∀$2907:Prop.(A→B→$2907)→$2907)→A
+    :∀A:Prop.∀B:Prop.(∀$55:Prop.(A→B→$55)→$55)→A
 ```
 
 ## Features

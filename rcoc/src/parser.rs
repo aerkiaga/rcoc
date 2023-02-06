@@ -110,7 +110,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 forall_expression,
                 exists_expression,
                 identifier_expression,
-            ));
+            )).boxed();
             let application_expression = nonlrecursive_expression
                 .clone()
                 .then(parameter_lists)
@@ -167,7 +167,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 });
             binary_expression2
         },
-    );
+    ).boxed();
     let let_assignment = just("let")
         .padded_by(token_separator.clone())
         .ignored()
