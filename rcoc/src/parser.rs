@@ -126,9 +126,19 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
             let binary_operator1 = choice((just("/\\"),)).padded_by(token_separator.clone());
             let binary_expression1 = application_expression
                 .clone()
-                .then(binary_operator1)
-                .repeated()
-                .then(application_expression)
+                .then(binary_operator1.then(application_expression).repeated())
+                .map(|t| {
+                    // we parse as if left folding as it's much faster,
+                    // then translate to right folding
+                    if t.1.len() == 0 {
+                        return (vec![], t.0);
+                    }
+                    let mut outv = vec![(t.0, t.1[0].0)];
+                    for n in 0..(t.1.len() - 1) {
+                        outv.push((t.1[n].1.clone(), t.1[n + 1].0));
+                    }
+                    (outv, t.1[t.1.len() - 1].1.clone())
+                })
                 .foldr(|t, x| match t.1 {
                     // alias: A∧B := ∀x:Prop.∀y:∀z:A.∀w:B.x.x
                     "/\\" => extensions::translate_conjunction(t.0, x),
@@ -137,9 +147,19 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
             let binary_operator2 = choice((just("->"),)).padded_by(token_separator.clone());
             let binary_expression2 = binary_expression1
                 .clone()
-                .then(binary_operator2)
-                .repeated()
-                .then(binary_expression1)
+                .then(binary_operator2.then(binary_expression1).repeated())
+                .map(|t| {
+                    // we parse as if left folding as it's much faster,
+                    // then translate to right folding
+                    if t.1.len() == 0 {
+                        return (vec![], t.0);
+                    }
+                    let mut outv = vec![(t.0, t.1[0].0)];
+                    for n in 0..(t.1.len() - 1) {
+                        outv.push((t.1[n].1.clone(), t.1[n + 1].0));
+                    }
+                    (outv, t.1[t.1.len() - 1].1.clone())
+                })
                 .foldr(|t, x| match t.1 {
                     // alias: A->B := ∀x:A.B
                     "->" => extensions::translate_implication(t.0, x),
