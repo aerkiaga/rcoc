@@ -51,14 +51,14 @@ let proof_e:
     )
 ;
 
-// ^ operator
+// ^ operator and False
 let proof_f:
-    @(A: Prop) A /\ ^A -> @(P: Prop) P
+    @(A: Prop) ^{A /\ ^A}
 =
     |A: Prop|
-    |h: @(Q:Prop) {A -> {A -> @(R:Prop) R} -> Q} -> Q|
+    |h: @(Q:Prop) {A -> {A -> False} -> Q} -> Q|
     h(@(P: Prop) P)(
-        |a: A, not_a: A -> @(R:Prop) R| not_a(a)
+        |a: A, not_a: A -> False| not_a(a)
     )
 ;
 

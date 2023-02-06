@@ -22,6 +22,26 @@ pub fn translate_implication(a: Expression, b: Expression) -> Expression {
     }
 }
 
+/// Translates ⊥
+/// into ∀x:Prop.x
+///
+/// Applied when parsing `False`
+///
+pub fn translate_false(sp: (usize, usize)) -> Expression {
+    let x = get_tmp_identifier();
+    Expression::Forall {
+        binding: {
+            Binding {
+                identifier: x.clone(),
+                type_expression: Box::new(Expression::Identifier("Prop".to_string(), (0, 0))),
+                span: (0, 0),
+            }
+        },
+        value_expression: Box::new(Expression::Identifier(x, (0, 0))),
+        span: sp,
+    }
+}
+
 /// Translates ¬A
 /// into ∀x:A.∀y:Prop.y
 ///

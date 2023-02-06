@@ -60,10 +60,19 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 .separated_by(token_separator.clone())
                 .at_least(1)
                 .flatten();
-            let identifier_expression = identifier
-                .clone()
-                .padded_by(token_separator.clone())
-                .map(|t| Expression::Identifier(t.0, t.1));
+            let special_identifier = choice((just("False").padded_by(token_separator.clone()),));
+            let identifier_expression = special_identifier
+                .map_with_span(|s, sp| match s {
+                    // alias: ⊥ := ∀x:Prop.x
+                    "False" => extensions::translate_false((sp.start(), sp.end())),
+                    _ => panic!(),
+                })
+                .or(
+                    identifier
+                    .clone()
+                    .padded_by(token_separator.clone())
+                    .map(|t| Expression::Identifier(t.0, t.1))
+                );
             let lambda_expression = binding_list
                 .clone()
                 .padded_by(just('|').padded_by(token_separator.clone()))

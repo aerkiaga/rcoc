@@ -35,8 +35,8 @@ proof_d = λA:Prop.λB:Prop.λh:∀P:Prop.(A→B→P)→P.h A λx:A.λy:B.x
     :∀A:Prop.∀B:Prop.(∀$55:Prop.(A→B→$55)→$55)→A
 proof_e = λA:Prop.λB:Prop.λh:∀P:Prop.(A→P)→(B→P)→P.h ∀$233:Prop.(B→$233)→(A→$233)→$233 λa:A.λQ:Prop.λ_:B→Q.λaq:A→Q.aq a λb:B.λQ:Prop.λbq:B→Q.λ_:A→Q.bq b
     :∀A:Prop.∀B:Prop.(∀$111:Prop.(A→$111)→(B→$111)→$111)→∀$116:Prop.(B→$116)→(A→$116)→$116
-proof_f = λA:Prop.λh:∀Q:Prop.(A→(A→∀R:Prop.R)→Q)→Q.h ∀P:Prop.P λa:A.λnot_a:A→∀R:Prop.R.not_a a
-    :∀A:Prop.(∀$263:Prop.(A→(A→∀$262:Prop.$262)→$263)→$263)→∀P:Prop.P
+proof_f = λA:Prop.λh:∀Q:Prop.(A→(A→∀$431:Prop.$431)→Q)→Q.h ∀P:Prop.P λa:A.λnot_a:A→∀$440:Prop.$440.not_a a
+    :∀A:Prop.(∀$276:Prop.(A→(A→∀$275:Prop.$275)→$276)→$276)→∀$281:Prop.$281
 ```
 
 ## Features
@@ -44,10 +44,13 @@ Core language:
  - [x] Calculus of Constructions
 
 Syntax extensions:
- - [x] `->` operator
- - [x] `/\` operator
- - [x] `\/` operator
- - [x] `exists()` operator
+ - [x] Intuitionistic logic
+
+| Category | Syntax elements |
+| --- | --- |
+| CoC terms | `A(B)` `|x: A| B` `@(x: A) B` `Prop` `Type(n)` `{A}` |
+| CoC sentences | `let a: A = B;` |
+| Intuitionistic logic | `A -> B` `False` `^A` `A /\ B` `A \/ B` `exists(x: A) B` |
 
 ## Acknowledgements
 
