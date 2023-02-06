@@ -67,12 +67,10 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                     "False" => extensions::translate_false((sp.start(), sp.end())),
                     _ => panic!(),
                 })
-                .or(
-                    identifier
+                .or(identifier
                     .clone()
                     .padded_by(token_separator.clone())
-                    .map(|t| Expression::Identifier(t.0, t.1))
-                );
+                    .map(|t| Expression::Identifier(t.0, t.1)));
             let lambda_expression = binding_list
                 .clone()
                 .padded_by(just('|').padded_by(token_separator.clone()))
@@ -119,7 +117,8 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 forall_expression,
                 exists_expression,
                 identifier_expression,
-            )).boxed();
+            ))
+            .boxed();
             let application_expression = nonlrecursive_expression
                 .clone()
                 .then(parameter_lists)
@@ -208,7 +207,8 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 });
             binary_expression3
         },
-    ).boxed();
+    )
+    .boxed();
     let let_assignment = just("let")
         .padded_by(token_separator.clone())
         .ignored()

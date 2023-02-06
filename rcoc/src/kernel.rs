@@ -667,6 +667,13 @@ impl std::fmt::Debug for Term {
                     }
                     f.write_str("→")?;
                     value_term.fmt(f)?;
+                } else if if let Term::Identifier(s, _) = &**value_term {
+                    s == binding_identifier
+                } else {
+                    false
+                } {
+                    // special case: ⊥ := ∀x:A.x
+                    f.write_str("⊥")?;
                 } else {
                     // ∀x:A.B where B contains x
                     f.write_str("∀")?;
