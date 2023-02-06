@@ -15,6 +15,7 @@ let proof_implication_is_transitive:
 ;
 ```
 
+## Usage
 You can run the example file using the following command:
 
 ```
@@ -31,6 +32,16 @@ proof_b = λT:Prop.λP:Prop.λx:T.λy:T→P.y x
 proof_c = λT:Prop.λQ:Prop.λh:∀P:Prop.(T→P)→Q.h T λx:T.x
     :∀T:Prop.∀$21:Prop.(∀P:Prop.(T→P)→$21)→$21
 ```
+
+## Features
+Core language:
+ - [x] Calculus of Constructions
+
+Syntax extensions:
+ - [x] `->` operator
+ - [x] `exists()` operator
+
+## Acknowledgements
 
 RCoC uses the amazing [chumsky](https://github.com/zesterer/chumsky)
 and [ariadne](https://github.com/zesterer/ariadne) crates by @zesterer
