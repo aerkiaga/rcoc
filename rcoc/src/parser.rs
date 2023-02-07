@@ -10,7 +10,8 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
     let comment = single_line_comment.or(multi_line_comment);
     let token_separator = text::whitespace()
         .then_ignore(comment.separated_by(text::whitespace()).ignored())
-        .then_ignore(text::whitespace());
+        .then_ignore(text::whitespace())
+        .boxed();
     let identifier = filter(|c| char::is_alphabetic(*c))
         .or(just('_'))
         .then(
@@ -117,8 +118,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 forall_expression,
                 exists_expression,
                 identifier_expression,
-            ))
-            .boxed();
+            ));
             let application_expression = nonlrecursive_expression
                 .clone()
                 .then(parameter_lists)
@@ -227,7 +227,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
     let statement_list = statement
         .then_ignore(just(';').padded_by(token_separator.clone()))
         .repeated();
-    statement_list.then_ignore(end())
+    statement_list.then_ignore(end()).boxed()
 }
 
 pub fn parse(input: &str) -> Result<Vec<Statement>, Vec<Simple<char>>> {
