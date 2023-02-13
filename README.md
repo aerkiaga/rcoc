@@ -25,18 +25,20 @@ cargo run -- test.rcoc
 Which will output:
 
 ```
-proof_a = λT:Prop.λx:T.x
+implication_is_reflexive = λT:Prop.λx:T.x
     :∀T:Prop.T→T
-proof_b = λT:Prop.λP:Prop.λx:T.λy:T→P.y x
+implication_works = λT:Prop.λP:Prop.λx:T.λy:T→P.y x
     :∀T:Prop.∀P:Prop.T→(T→P)→P
-proof_c = λT:Prop.λQ:Prop.λh:∀P:Prop.(T→P)→Q.h T λx:T.x
+consequent_always_exists = λT:Prop.λQ:Prop.λh:∀P:Prop.(T→P)→Q.h T λx:T.x
     :∀T:Prop.∀$23:Prop.(∀P:Prop.(T→P)→$23)→$23
-proof_d = λA:Prop.λB:Prop.λh:∀P:Prop.(A→B→P)→P.h A λx:A.λy:B.x
+conjunction_implies_operand = λA:Prop.λB:Prop.λh:∀P:Prop.(A→B→P)→P.h A λx:A.λy:B.x
     :∀A:Prop.∀B:Prop.(∀$55:Prop.(A→B→$55)→$55)→A
-proof_e = λA:Prop.λB:Prop.λh:∀P:Prop.(A→P)→(B→P)→P.h ∀$233:Prop.(B→$233)→(A→$233)→$233 λa:A.λQ:Prop.λ_:B→Q.λaq:A→Q.aq a λb:B.λQ:Prop.λbq:B→Q.λ_:A→Q.bq b
+disjunction_is_commutative = λA:Prop.λB:Prop.λh:∀P:Prop.(A→P)→(B→P)→P.h ∀$233:Prop.(B→$233)→(A→$233)→$233 λa:A.λQ:Prop.λ_:B→Q.λaq:A→Q.aq a λb:B.λQ:Prop.λbq:B→Q.λ_:A→Q.bq b
     :∀A:Prop.∀B:Prop.(∀$111:Prop.(A→$111)→(B→$111)→$111)→∀$116:Prop.(B→$116)→(A→$116)→$116
-proof_f = λA:Prop.λh:∀Q:Prop.(A→(A→⊥)→Q)→Q.h ⊥ λa:A.λnot_a:A→⊥.not_a a
+proposition_and_its_negation_is_false = λA:Prop.λh:∀Q:Prop.(A→(A→⊥)→Q)→Q.h ⊥ λa:A.λnot_a:A→⊥.not_a a
     :∀A:Prop.(∀$276:Prop.(A→(A→⊥)→$276)→$276)→⊥
+disjunction_of_implication_is_commutative = λA:Prop.λB:Prop.disjunction_is_commutative A→B B→A
+    :∀A:Prop.∀B:Prop.(∀$465:Prop.((A→B)→$465)→((B→A)→$465)→$465)→∀$474:Prop.((B→A)→$474)→((A→B)→$474)→$474
 ```
 
 ## Features
