@@ -209,6 +209,46 @@ impl Term {
         }
     }
 
+    pub fn rename(self: &mut Self, identifier: &String, new_name: &String) {
+        match self {
+            Self::Identifier(s, db) => {
+                if s == identifier {
+                    *self = Self::Identifier(new_name.clone(), db.clone());
+                }
+            }
+            Self::Application {
+                function_term,
+                parameter_term,
+                debug_context: _,
+            } => {
+                function_term.rename(identifier, new_name);
+                parameter_term.rename(identifier, new_name);
+            }
+            Self::Lambda {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.rename(identifier, new_name);
+                if binding_identifier != identifier {
+                    value_term.rename(identifier, new_name);
+                }
+            }
+            Self::Forall {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.rename(identifier, new_name);
+                if binding_identifier != identifier {
+                    value_term.rename(identifier, new_name);
+                }
+            }
+        }
+    }
+
     pub fn replace(self: &mut Self, identifier: &String, value: &Self) {
         match self {
             Self::Identifier(s, _) => {
@@ -232,6 +272,11 @@ impl Term {
             } => {
                 binding_type.replace(identifier, value);
                 if binding_identifier != identifier {
+                    if value.contains(binding_identifier) {
+                        let new_binding_identifier = format!("{}_", binding_identifier);
+                        value_term.rename(binding_identifier, &new_binding_identifier);
+                        *binding_identifier = new_binding_identifier;
+                    }
                     value_term.replace(identifier, value);
                 }
             }
@@ -243,6 +288,11 @@ impl Term {
             } => {
                 binding_type.replace(identifier, value);
                 if binding_identifier != identifier {
+                    if value.contains(binding_identifier) {
+                        let new_binding_identifier = format!("{}_", binding_identifier);
+                        value_term.rename(binding_identifier, &new_binding_identifier);
+                        *binding_identifier = new_binding_identifier;
+                    }
                     value_term.replace(identifier, value);
                 }
             }
@@ -722,6 +772,12 @@ impl State {
                     });
                 }
                 value_term.normalize();
+                println!(
+                    "{} = {:?}\n    :{:?}",
+                    identifier.clone(),
+                    value_term.clone(),
+                    type_term.clone()
+                );
                 self.terms
                     .insert(identifier.clone(), (type_term, value_term));
             }
@@ -734,9 +790,6 @@ pub fn execute(input: &Vec<Statement>) -> Result<(), KernelError> {
     let mut state = State::new();
     for statement in input {
         state.update(statement)?;
-    }
-    for term in state.terms {
-        println!("{} = {:?}\n    :{:?}", term.0, term.1 .1, term.1 .0);
     }
     Ok(())
 }

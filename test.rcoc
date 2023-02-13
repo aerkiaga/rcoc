@@ -1,21 +1,21 @@
 /* This is an example file to test rcoc */
 
 // basic syntax
-let proof_a:
+let implication_is_reflexive:
     @(T: Prop, x: T) T
 =
     |T: Prop, x: T| {|y: T| y}(x)
 ;
 
 // -> operator
-let proof_b:
+let implication_works:
     @(T, P: Prop) T -> {T -> P} -> P
 =
     |T, P: Prop, x: T, y: T -> P| y(x)
 ;
 
 // exists() operator
-let proof_c:
+let consequent_always_exists:
     @(T: Prop) exists(P: Prop) T -> P
 =
     |T, Q: Prop|
@@ -24,7 +24,7 @@ let proof_c:
 ;
 
 // /\ operator
-let proof_d:
+let conjunction_implies_operand:
     @(A, B: Prop) A /\ B -> A
 =
     |A, B: Prop|
@@ -33,7 +33,7 @@ let proof_d:
 ;
 
 // \/ operator
-let proof_e:
+let disjunction_is_commutative:
     @(A, B: Prop) A \/ B -> B \/ A
 =
     |A, B: Prop|
@@ -52,7 +52,7 @@ let proof_e:
 ;
 
 // ^ operator and False
-let proof_f:
+let proposition_and_its_negation_is_false:
     @(A: Prop) ^{A /\ ^A}
 =
     |A: Prop|
@@ -62,7 +62,13 @@ let proof_f:
     )
 ;
 
-
+// using previous terms
+let disjunction_of_implication_is_commutative:
+    @(A, B: Prop) {A -> B} \/ {B -> A} -> {B -> A} \/ {A -> B}
+=
+    |A, B: Prop|
+    disjunction_is_commutative(A -> B, B -> A)
+;
 
 
 
