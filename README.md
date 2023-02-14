@@ -39,6 +39,8 @@ proposition_and_its_negation_is_false = λA:Prop.λh:∀Q:Prop.(A→(A→⊥)→
     :∀A:Prop.(∀$276:Prop.(A→(A→⊥)→$276)→$276)→⊥
 disjunction_of_implication_is_commutative = λA:Prop.λB:Prop.disjunction_is_commutative A→B B→A
     :∀A:Prop.∀B:Prop.(∀$465:Prop.((A→B)→$465)→((B→A)→$465)→$465)→∀$474:Prop.((B→A)→$474)→((A→B)→$474)→$474
+equivalence_implies_implication = λA:Prop.λB:Prop.conjunction_implies_operand A→B B→A
+    :∀A:Prop.∀B:Prop.(∀$494:Prop.((A→B)→(B→A)→$494)→$494)→A→B
 ```
 
 ## Features
@@ -52,7 +54,7 @@ Syntax extensions:
 | --- | --- |
 | CoC terms | `A(B)` `\|x: A\| B` `@(x: A) B` `Prop` `Type(n)` `{A}` |
 | CoC sentences | `let a: A = B;` |
-| Intuitionistic logic | `A -> B` `False` `^A` `A /\ B` `A \/ B` `exists(x: A) B` |
+| Intuitionistic logic | `A -> B` `False` `^A` `A /\ B` `A \/ B` `exists(x: A) B` `A <-> B` |
 
 ## Acknowledgements
 

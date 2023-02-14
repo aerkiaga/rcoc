@@ -20,13 +20,10 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 .repeated()
                 .collect::<String>(),
         )
-        .try_map(|t, sp: std::ops::Range<usize>| {
+        .map_with_span(|t, sp: std::ops::Range<usize>| {
             let mut s = String::from(t.0);
             s.push_str(&t.1);
-            match &*s {
-                "exists" => Err(Simple::custom(sp, "'exists' is a reserved word")),
-                _ => Ok((s, (sp.start(), sp.end()))),
-            }
+            (s, (sp.start(), sp.end()))
         });
     let expression = recursive(
         |nested_expression: Recursive<char, Expression, Simple<char>>| {
@@ -184,7 +181,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                     "\\/" => extensions::translate_disjunction(t.0, x),
                     _ => panic!(),
                 });
-            let binary_operator3 = choice((just("->"),)).padded_by(token_separator.clone());
+            let binary_operator3 = choice((just("<->"),)).padded_by(token_separator.clone());
             let binary_expression3 = binary_expression2
                 .clone()
                 .then(binary_operator3.then(binary_expression2).repeated())
@@ -201,11 +198,32 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                     (outv, t.1[t.1.len() - 1].1.clone())
                 })
                 .foldr(|t, x| match t.1 {
-                    // alias: A->B := ∀x:A.B
+                    // alias: A↔B := (A→B)∧(B→A)
+                    "<->" => extensions::translate_equivalence(t.0, x),
+                    _ => panic!(),
+                });
+            let binary_operator4 = choice((just("->"),)).padded_by(token_separator.clone());
+            let binary_expression4 = binary_expression3
+                .clone()
+                .then(binary_operator4.then(binary_expression3).repeated())
+                .map(|t| {
+                    // we parse as if left folding as it's much faster,
+                    // then translate to right folding
+                    if t.1.len() == 0 {
+                        return (vec![], t.0);
+                    }
+                    let mut outv = vec![(t.0, t.1[0].0)];
+                    for n in 0..(t.1.len() - 1) {
+                        outv.push((t.1[n].1.clone(), t.1[n + 1].0));
+                    }
+                    (outv, t.1[t.1.len() - 1].1.clone())
+                })
+                .foldr(|t, x| match t.1 {
+                    // alias: A→B := ∀x:A.B
                     "->" => extensions::translate_implication(t.0, x),
                     _ => panic!(),
                 });
-            binary_expression3
+            binary_expression4
         },
     )
     .boxed();

@@ -1,6 +1,6 @@
 use crate::ast::*;
 
-/// Translates A->B
+/// Translates A→B
 /// into ∀x:A.B
 ///
 /// Applied when parsing `... -> ...`
@@ -233,4 +233,16 @@ pub fn translate_exists(a: Binding, b: Expression) -> Expression {
         }),
         span: new_span,
     }
+}
+
+/// Translates A↔B
+/// into (A→B)∧(B→A)
+///
+/// Applied when parsing `... <-> ...`
+///
+pub fn translate_equivalence(a: Expression, b: Expression) -> Expression {
+    translate_conjunction(
+        translate_implication(a.clone(), b.clone()),
+        translate_implication(b, a)
+    )
 }

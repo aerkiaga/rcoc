@@ -70,5 +70,15 @@ let disjunction_of_implication_is_commutative:
     disjunction_is_commutative(A -> B, B -> A)
 ;
 
+// <-> operator
+let equivalence_implies_implication:
+    @(A, B: Prop) A <-> B -> A -> B
+=
+    |A, B: Prop|
+    |h: {A -> B} /\ {B -> A}|
+    |a: A|
+    conjunction_implies_operand(A -> B, B -> A, h, a)
+;
+
 
 
