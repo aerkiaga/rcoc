@@ -31,7 +31,7 @@
 //!
 //! Finally, the kernel offers the ability to _define_
 //! variables within a _state_. A definition like
-//! `let x: A = B;` involves normalizing both A and B,
+//! `x = B: A` involves normalizing both A and B,
 //! checking that A is valid, and comparing B's type
 //! to A. Then, the new term is added to the state.
 //!
@@ -83,6 +83,10 @@
 //! ### η-reduction
 //! Transforms λx:T.F x into F only if 'x' doesn't
 //! appear free (i.e. accounting for shadowing) in F.
+//!
+//! ### δ-reduction
+//! Replaces each free variable that's defined in the
+//! containing state by its value, using substitution.
 //!
 //! ### α-conversion
 //! This involves renaming identifiers. It can be performed
@@ -601,6 +605,17 @@ impl Term {
         }
     }
 
+    /// Applies δ-reduction to the greatest extent possible.
+    /// Preserves variable names.
+    ///
+    /// Please note that no type checking is performed.
+    ///
+    pub fn delta_normalize(self: &mut Self, state: &State) {
+        for (name, term) in &state.terms {
+            self.replace(name, &term.1);
+        }
+    }
+
     fn alpha_normalize_recursive(self: &mut Self, next_suffix: u64) {
         match self {
             Self::Identifier(_, _) => {}
@@ -652,20 +667,24 @@ impl Term {
     }
 
     /// Applies α-conversion, reassigning variable names systematically.
+    ///
     /// Two equivalent terms always become identical after applying
-    /// `.normalize()` followed by `.alpha_normalize()` on both.
+    /// `.delta_normalize()`, `.normalize()` and `.alpha_normalize()` on both.
     ///
     pub fn alpha_normalize(self: &mut Self) {
         self.alpha_normalize_recursive(0)
     }
 
-    /// Applies `.normalize()` followed by `.alpha_normalize()`.
+    /// Applies `.delta_normalize()`, `.normalize()` and `.alpha_normalize()`,
+    /// in that order.
+    ///
     /// Two equivalent terms always become identical after applying
     /// this method on both.
     ///
     /// Please note that no type checking is performed.
     ///
-    pub fn full_normalize(self: &mut Self) {
+    pub fn full_normalize(self: &mut Self, state: &State) {
+        self.delta_normalize(state);
         self.normalize();
         self.alpha_normalize();
     }
@@ -735,9 +754,9 @@ impl Term {
                     } => {
                         let mut parameter_type =
                             parameter_term.infer_type_recursive(state, stack)?;
-                        parameter_type.full_normalize();
+                        parameter_type.full_normalize(state);
                         let mut expected_parameter_type = binding_type.clone();
-                        expected_parameter_type.full_normalize();
+                        expected_parameter_type.full_normalize(state);
                         if parameter_type != *expected_parameter_type {
                             return Err(KernelError::NonmatchingArgument {
                                 expected_type: *expected_parameter_type,
@@ -933,9 +952,9 @@ impl State {
         type_term.normalize();
         let mut actual_type = value_term.infer_type(&self)?;
         value_term.normalize();
-        actual_type.full_normalize();
+        actual_type.full_normalize(self);
         let mut expected_type = type_term.clone();
-        expected_type.full_normalize();
+        expected_type.full_normalize(self);
         if expected_type != actual_type {
             return Err(KernelError::NonmatchingDefinition {
                 expected_type: expected_type,
