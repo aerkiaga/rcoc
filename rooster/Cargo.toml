@@ -15,3 +15,16 @@ categories = ["mathematics"]
 rooster_kernel = { path = "../rooster_kernel" }
 ariadne = "0.1.5"
 chumsky = "0.9.0"
+
+[package.metadata.bundle]
+name = "Rooster"
+identifier = "ioo.github.aerkiaga.rooster"
+version = "0.1.0"
+copyright = "Copyright (c) Aritz Erkiaga Fernández 2023. Distributed under the GNU GPL license, version 3.0."
+category = "Development"
+short_description = "An automated proof checker based on the Calculus of Constructions."
+long_description = """
+Rooster is a program that checks the validity of mathematical
+proofs written in a Rust-like syntax. Under the hood, it
+implements the Calculus of Constructions as a tiny kernel.
+"""
