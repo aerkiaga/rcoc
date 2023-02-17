@@ -1,4 +1,6 @@
 # Rooster
+![Kernel size](https://img.shields.io/badge/kernel-703%20SLOC-blue)
+
 An automated proof checker based on the Calculus of Constructions.
 
 Written in Rust, proofs also employ a Rust-like syntax.
