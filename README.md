@@ -1,4 +1,4 @@
-# RCoC
+# Rooster
 An automated proof checker based on the Calculus of Constructions.
 
 Written in Rust, proofs also employ a Rust-like syntax.
@@ -19,7 +19,7 @@ let proof_implication_is_transitive:
 You can run the example file using the following command:
 
 ```
-cargo run -- test.rcoc
+cargo run -- test.roo
 ```
 
 Which will output:
