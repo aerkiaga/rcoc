@@ -35,6 +35,38 @@
 //! checking that A is valid, and comparing B's type
 //! to A. Then, the new term is added to the state.
 //!
+//! ## Free variables
+//! A term is said to freely contain a variable
+//! if an occurrence of it is anywhere within the term
+//! and it is not bound to any inner scope. For example,
+//! x a x contains 'x' as a free variable, while
+//! λx.x a x doesn't. However, (λx.x a x) x does contain 'x'
+//! (the last occurrence). Same goes for terms involving
+//! ∀ instead of λ.
+//!
+//! ## Substitution
+//! Substitution involves replacing a variable within
+//! a term by a second term. All free occurrences of the
+//! variable are replaced.
+//!
+//! There's a special case to consider. If the new term
+//! contains free variables that would become bound upon
+//! substitution, renaming is performed. For example,
+//! consider the term λx:A.y x., where 'y' is to be
+//! replaced by a term containing a free occurrence of 'x'.
+//! Substituting it into the inner scope would bind 'x',
+//! so it would refer to a different variable than it should.
+//! This is solved by renaming the inner 'x', like so:
+//! λx0:A.y x0. Now, substitution can be performed.
+//!
+//! To rename a variable like this, a name is chosen that
+//! is not a free variable within the abstraction.
+//! For example, in λx:A.x x0, 'x' wouldn't be renamed to
+//! 'x0', a different name would be chosen.
+//!
+//! Then, substitution is used to replace the variable.
+//! This means that all of the above is applied again.
+//!
 //! ## Normalization rules
 //! The following rules are applied, whenever valid, in any
 //! order, until none of them can be applied further. Since
@@ -45,24 +77,8 @@
 //! Transforms (λx:T.F) P into F[x:=P], i.e. "returns" F,
 //! with every occurrence of 'x' replaced with term P.
 //!
-//! There are special cases to consider. On one hand,
-//! variables can be _shadowed_. This means that identifiers
-//! will refer to the variable with the same name defined
-//! in the innermost scope. For example, replacing 'x' with
-//! P in (λx:A.x B) x will result in (λx:A.x B) P, and the
-//! same goes for (∀x:A.x B) x.
-//!
-//! On the other hand, it is possible that the term to be
-//! replaced into an identifier contains a variable with
-//! the same name as a variable that's defined in an inner
-//! scope relative to P. For example, consider the term
-//! λx:A.(λy:B.λx:C.y x) x. Here the term is 'x', which refers
-//! to the variable in the outer scope. Substituting it
-//! into the inner scope would shadow 'x', so it would
-//! refer to a different variable. This is solved by
-//! renaming the inner 'x', like so: λx:A.λx_:C.x x_.
-//!
-//! TODO: renaming 'x' to 'x_' is incorrect if 'x_' is bound.
+//! Substitution is used to perform this replacement,
+//! with the rules explained above.
 //!
 //! ### η-reduction
 //! Transforms λx:T.F x into F only if 'x' doesn't
@@ -75,11 +91,15 @@
 //! unless two terms need to be compared (since they need
 //! to have the exact same variable names).
 //!
-//! Shadowing applies here, so replacing 'x' with 'y'
-//! in (λx:A.x B) x will afford (λx:A.x B) y. Same goes
-//! for (∀x:A.x B) x.
+//! Renaming identifiers is also done via substitution,
+//! so all of the rules of substitution apply here.
 //!
-//! TODO: α-conversion will be incorrect if the new name is bound.
+//! In this kernel, α-conversion is only aimed at comparing
+//! terms. The way it is performed is the following:
+//! every variable defined within the term is given a name
+//! of the form '#n', where n is some natural number.
+//! Two terms that are equivalent up to α-conversion will
+//! always become identical after applying this to both.
 //!
 //! ## Type inference rules
 //! * Variables defined outside the term (in its containing
@@ -92,7 +112,7 @@
 //! * A B, where A has type ∀x:T.V, takes type V[x:=B].
 //!   - If A doesn't have such type, the term is invalid.
 //!   - If B is not of type T, the term is invalid.
-//! 
+//!
 
 /// A type containing extra information for debugging proofs.
 ///
@@ -102,7 +122,11 @@
 ///
 #[derive(Clone)]
 pub enum TermDebugContext {
+    /// No information, don't propagate.
+    Ignore,
+    /// The term originates from a span of the input source code.
     CodeSpan((usize, usize)),
+    /// The term is the type of a term with a given debug context.
     TypeOf(Box<TermDebugContext>),
 }
 
@@ -110,6 +134,7 @@ impl TermDebugContext {
     /// Get the span of source code containing this term.
     pub fn get_span(self: &Self) -> (usize, usize) {
         match self {
+            Self::Ignore => (0, 0),
             Self::CodeSpan(s) => *s,
             Self::TypeOf(b) => b.get_span(),
         }
@@ -258,138 +283,26 @@ pub struct State {
 }
 
 impl Term {
-    fn contains(self: &Self, identifier: &String) -> bool {
+    fn debug_context(self: &Self) -> &TermDebugContext {
         match self {
-            Self::Identifier(s, _) => s == identifier,
+            Self::Identifier(_, db) => db,
             Self::Application {
-                function_term,
-                parameter_term,
-                debug_context: _,
-            } => function_term.contains(identifier) || parameter_term.contains(identifier),
+                function_term: _,
+                parameter_term: _,
+                debug_context,
+            } => debug_context,
             Self::Lambda {
-                binding_identifier,
-                binding_type,
-                value_term,
-                debug_context: _,
-            } => {
-                binding_type.contains(identifier)
-                    || binding_identifier != identifier && value_term.contains(identifier)
-            }
+                binding_identifier: _,
+                binding_type: _,
+                value_term: _,
+                debug_context,
+            } => debug_context,
             Self::Forall {
-                binding_identifier,
-                binding_type,
-                value_term,
-                debug_context: _,
-            } => {
-                binding_type.contains(identifier)
-                    || binding_identifier != identifier && value_term.contains(identifier)
-            }
-        }
-    }
-
-    /// Renames identifier everywhere within the given term.
-    ///
-    /// Note that variable shadowing applies, so e.g. renaming
-    /// 'x' to 'y' in (λx:A.x B) x would result in (λx:A.x B) y,
-    /// and the same in (∀x:A.x B) x would give (∀x:A.x B) y.
-    ///
-    pub fn rename(self: &mut Self, identifier: &String, new_name: &String) {
-        match self {
-            Self::Identifier(s, db) => {
-                if s == identifier {
-                    *self = Self::Identifier(new_name.clone(), db.clone());
-                }
-            }
-            Self::Application {
-                function_term,
-                parameter_term,
-                debug_context: _,
-            } => {
-                function_term.rename(identifier, new_name);
-                parameter_term.rename(identifier, new_name);
-            }
-            Self::Lambda {
-                binding_identifier,
-                binding_type,
-                value_term,
-                debug_context: _,
-            } => {
-                binding_type.rename(identifier, new_name);
-                if binding_identifier != identifier {
-                    value_term.rename(identifier, new_name);
-                }
-            }
-            Self::Forall {
-                binding_identifier,
-                binding_type,
-                value_term,
-                debug_context: _,
-            } => {
-                binding_type.rename(identifier, new_name);
-                if binding_identifier != identifier {
-                    value_term.rename(identifier, new_name);
-                }
-            }
-        }
-    }
-
-    /// Replaces every occurrence of a variable by a new term.
-    ///
-    /// There are two special cases to consider. Firstly, shadowing,
-    /// so that replacing 'x' by V in (λx:A.x B) x gives (λx:A.x B) V,
-    /// and the same in (∀x:A.x B) x produces (∀x:A.x B) V.
-    /// Secondly, in a case like λy:A.x y B, replacing that 'x' would
-    /// produce a wrong result if V happens to contain 'y'. In this case,
-    /// the substitution would be applied like this: λy_:A.V y_ B.
-    /// Same goes for ∀y:A.x y B.
-    /// 
-    pub fn replace(self: &mut Self, identifier: &String, value: &Self) {
-        match self {
-            Self::Identifier(s, _) => {
-                if s == identifier {
-                    *self = value.clone();
-                }
-            }
-            Self::Application {
-                function_term,
-                parameter_term,
-                debug_context: _,
-            } => {
-                function_term.replace(identifier, value);
-                parameter_term.replace(identifier, value);
-            }
-            Self::Lambda {
-                binding_identifier,
-                binding_type,
-                value_term,
-                debug_context: _,
-            } => {
-                binding_type.replace(identifier, value);
-                if binding_identifier != identifier {
-                    if value.contains(binding_identifier) {
-                        let new_binding_identifier = format!("{}_", binding_identifier);
-                        value_term.rename(binding_identifier, &new_binding_identifier);
-                        *binding_identifier = new_binding_identifier;
-                    }
-                    value_term.replace(identifier, value);
-                }
-            }
-            Self::Forall {
-                binding_identifier,
-                binding_type,
-                value_term,
-                debug_context: _,
-            } => {
-                binding_type.replace(identifier, value);
-                if binding_identifier != identifier {
-                    if value.contains(binding_identifier) {
-                        let new_binding_identifier = format!("{}_", binding_identifier);
-                        value_term.rename(binding_identifier, &new_binding_identifier);
-                        *binding_identifier = new_binding_identifier;
-                    }
-                    value_term.replace(identifier, value);
-                }
-            }
+                binding_identifier: _,
+                binding_type: _,
+                value_term: _,
+                debug_context,
+            } => debug_context,
         }
     }
 
@@ -427,6 +340,145 @@ impl Term {
                 value_term: value_term.clone(),
                 debug_context: new_debug_context.clone(),
             },
+        }
+    }
+
+    // Checks if the given term contains an identifier in free form,
+    /// that is, not shadowed by any variable defined within the term.
+    pub fn contains(self: &Self, identifier: &String) -> bool {
+        match self {
+            Self::Identifier(s, _) => s == identifier,
+            Self::Application {
+                function_term,
+                parameter_term,
+                debug_context: _,
+            } => function_term.contains(identifier) || parameter_term.contains(identifier),
+            Self::Lambda {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.contains(identifier)
+                    || binding_identifier != identifier && value_term.contains(identifier)
+            }
+            Self::Forall {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.contains(identifier)
+                    || binding_identifier != identifier && value_term.contains(identifier)
+            }
+        }
+    }
+
+    /// Replaces every occurrence of a variable by a new term.
+    ///
+    /// There are two special cases to consider. Firstly, shadowing,
+    /// so that replacing 'x' by V in (λx:A.x B) x gives (λx:A.x B) V,
+    /// and the same in (∀x:A.x B) x produces (∀x:A.x B) V.
+    /// Secondly, in a case like λy:A.x y, replacing that 'x' would
+    /// produce a wrong result if V happens to contain 'y'. In this case,
+    /// the substitution would be applied like this: λy0:A.V y0.
+    /// Same goes for ∀y:A.x y. In this case, a new name is chosen
+    /// that does not occur freely in the inner expression (here x y,
+    /// so y0 is a valid name), and then `replace` is called on it.
+    ///
+    /// Regarding debug context, this function applies an exception:
+    /// if the value to be substituted into a given term has a debug
+    /// context TermDebugContext::Ignore, the debug context of the
+    /// original variable occurrences will be preserved, rather than
+    /// copying over the context from the new term.
+    ///
+    pub fn replace(self: &mut Self, identifier: &String, value: &Self) {
+        match self {
+            Self::Identifier(s, db) => {
+                if s == identifier {
+                    if let TermDebugContext::Ignore = value.debug_context() {
+                        // ignore new debug context
+                        *self = value.with_new_debug_context(db)
+                    } else {
+                        // copy over new debug context
+                        *self = value.clone()
+                    }
+                }
+            }
+            Self::Application {
+                function_term,
+                parameter_term,
+                debug_context: _,
+            } => {
+                function_term.replace(identifier, value);
+                parameter_term.replace(identifier, value);
+            }
+            Self::Lambda {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.replace(identifier, value);
+                if binding_identifier != identifier {
+                    if value.contains(binding_identifier) {
+                        let mut suffix: u64 = 0;
+                        loop {
+                            let new_binding_identifier =
+                                format!("{}{}", binding_identifier, suffix);
+                            if !value_term.contains(&new_binding_identifier) {
+                                value_term.replace(
+                                    binding_identifier,
+                                    &Self::Identifier(
+                                        new_binding_identifier.clone(),
+                                        TermDebugContext::Ignore,
+                                    ),
+                                );
+                                *binding_identifier = new_binding_identifier;
+                                break;
+                            }
+                            if suffix == u64::MAX {
+                                panic!("Ran out of suffixes for variable renaming");
+                            }
+                            suffix += 1;
+                        }
+                    }
+                    value_term.replace(identifier, value);
+                }
+            }
+            Self::Forall {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.replace(identifier, value);
+                if binding_identifier != identifier {
+                    if value.contains(binding_identifier) {
+                        let mut suffix: u64 = 0;
+                        loop {
+                            let new_binding_identifier =
+                                format!("{}{}", binding_identifier, suffix);
+                            if !value_term.contains(&new_binding_identifier) {
+                                value_term.replace(
+                                    binding_identifier,
+                                    &Self::Identifier(
+                                        new_binding_identifier.clone(),
+                                        TermDebugContext::Ignore,
+                                    ),
+                                );
+                                *binding_identifier = new_binding_identifier;
+                                break;
+                            }
+                            if suffix == u64::MAX {
+                                panic!("Ran out of suffixes for variable renaming");
+                            }
+                            suffix += 1;
+                        }
+                    }
+                    value_term.replace(identifier, value);
+                }
+            }
         }
     }
 
@@ -549,22 +601,16 @@ impl Term {
         }
     }
 
-    fn alpha_normalize_recursive(self: &mut Self, dictionary: &mut Vec<String>) {
+    fn alpha_normalize_recursive(self: &mut Self, next_suffix: u64) {
         match self {
-            Self::Identifier(s, _) => {
-                for n in 0..dictionary.len() {
-                    if s == &dictionary[n] {
-                        *s = format!("#{}", n);
-                    }
-                }
-            }
+            Self::Identifier(_, _) => {}
             Self::Application {
                 function_term,
                 parameter_term,
                 debug_context: _,
             } => {
-                function_term.alpha_normalize_recursive(dictionary);
-                parameter_term.alpha_normalize_recursive(dictionary);
+                function_term.alpha_normalize_recursive(next_suffix);
+                parameter_term.alpha_normalize_recursive(next_suffix);
             }
             Self::Lambda {
                 binding_identifier,
@@ -572,11 +618,17 @@ impl Term {
                 value_term,
                 debug_context: _,
             } => {
-                binding_type.alpha_normalize_recursive(dictionary);
-                dictionary.push(binding_identifier.clone());
-                value_term.alpha_normalize_recursive(dictionary);
-                dictionary.pop();
-                *binding_identifier = format!("#{}", dictionary.len());
+                binding_type.alpha_normalize_recursive(next_suffix);
+                let new_binding_identifier = format!("#{}", next_suffix);
+                value_term.replace(
+                    binding_identifier,
+                    &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
+                );
+                *binding_identifier = new_binding_identifier;
+                if next_suffix == u64::MAX {
+                    panic!("Ran out of suffixes for variable renaming");
+                }
+                value_term.alpha_normalize_recursive(next_suffix + 1);
             }
             Self::Forall {
                 binding_identifier,
@@ -584,11 +636,17 @@ impl Term {
                 value_term,
                 debug_context: _,
             } => {
-                binding_type.alpha_normalize_recursive(dictionary);
-                dictionary.push(binding_identifier.clone());
-                value_term.alpha_normalize_recursive(dictionary);
-                dictionary.pop();
-                *binding_identifier = format!("#{}", dictionary.len());
+                binding_type.alpha_normalize_recursive(next_suffix);
+                let new_binding_identifier = format!("#{}", next_suffix);
+                value_term.replace(
+                    binding_identifier,
+                    &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
+                );
+                *binding_identifier = new_binding_identifier;
+                if next_suffix == u64::MAX {
+                    panic!("Ran out of suffixes for variable renaming");
+                }
+                value_term.alpha_normalize_recursive(next_suffix + 1);
             }
         }
     }
@@ -598,8 +656,7 @@ impl Term {
     /// `.normalize()` followed by `.alpha_normalize()` on both.
     ///
     pub fn alpha_normalize(self: &mut Self) {
-        let mut dictionary = vec![];
-        self.alpha_normalize_recursive(&mut dictionary)
+        self.alpha_normalize_recursive(0)
     }
 
     /// Applies `.normalize()` followed by `.alpha_normalize()`.

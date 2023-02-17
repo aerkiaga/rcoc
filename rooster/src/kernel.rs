@@ -48,7 +48,6 @@ pub fn update_state(state: &mut State, statement: &Statement) -> Result<(), Kern
         } => {
             let mut type_term = new_term(type_expression);
             let mut value_term = new_term(value_expression);
-            let mut actual_type = value_term.infer_type(&state)?;
             state.try_define(identifier, type_term.clone(), value_term.clone())?;
             value_term.normalize();
             type_term.normalize();
