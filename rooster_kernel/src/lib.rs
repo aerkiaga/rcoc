@@ -1,4 +1,100 @@
-/// A type containing extra information for debugging proofs
+//! This crate contains **Rooster**'s proof kernel code,
+//! an implementation of the [Calculus of Constructions](https://en.wikipedia.org/wiki/Calculus_of_constructions) (CoC).
+//!
+//! CoC is a mathematical type theory and programming language
+//! developed by adding dependent types, polymorphism and
+//! type operators to simply typed lambda calculus. Devised by
+//! Thierry Coquand, it is _strongly normalizing_ (i.e. every
+//! program in CoC terminates, and thus CoC is not
+//! Turing-complete) and follows the Curry-Howard isomorphism,
+//! which links together programs and proofs.
+//!
+//! CoC can be used to write both standard programs and
+//! proofs of propositions. It provides _intuitionistic_
+//! logic as a foundation to build upon, which is weaker
+//! than classical logic.
+//!
+//! A _term_ in CoC can take the following forms:
+//! * x, where 'x' is an identifier.
+//! * A B, for terms A and B.
+//! * λx:A.B, for identifier 'x' and terms A and B.
+//! * ∀x:A.B, for identifier 'x' and terms A and B.
+//!
+//! _Prop_ and _Type(1)_ are special, pre-defined identifiers.
+//!
+//! The kernel offers two main operations on terms. The first
+//! is _normalizing_, which is equivalent to computation and
+//! reduces terms to an equivalent form. The second is
+//! _type inference_, which determines the type of a term,
+//! but also checks if the term itself is valid. The type of
+//! a term is also a term.
+//!
+//! Finally, the kernel offers the ability to _define_
+//! variables within a _state_. A definition like
+//! `let x: A = B;` involves normalizing both A and B,
+//! checking that A is valid, and comparing B's type
+//! to A. Then, the new term is added to the state.
+//!
+//! ## Normalization rules
+//! The following rules are applied, whenever valid, in any
+//! order, until none of them can be applied further. Since
+//! CoC is strongly normalizing, every finite term is fully
+//! normalized after a finite amount of steps.
+//!
+//! ### β-reduction
+//! Transforms (λx:T.F) P into F[x:=P], i.e. "returns" F,
+//! with every occurrence of 'x' replaced with term P.
+//!
+//! There are special cases to consider. On one hand,
+//! variables can be _shadowed_. This means that identifiers
+//! will refer to the variable with the same name defined
+//! in the innermost scope. For example, replacing 'x' with
+//! P in (λx:A.x B) x will result in (λx:A.x B) P, and the
+//! same goes for (∀x:A.x B) x.
+//!
+//! On the other hand, it is possible that the term to be
+//! replaced into an identifier contains a variable with
+//! the same name as a variable that's defined in an inner
+//! scope relative to P. For example, consider the term
+//! λx:A.(λy:B.λx:C.y x) x. Here the term is 'x', which refers
+//! to the variable in the outer scope. Substituting it
+//! into the inner scope would shadow 'x', so it would
+//! refer to a different variable. This is solved by
+//! renaming the inner 'x', like so: λx:A.λx_:C.x x_.
+//!
+//! TODO: renaming 'x' to 'x_' is incorrect if 'x_' is bound.
+//!
+//! ### η-reduction
+//! Transforms λx:T.F x into F only if 'x' doesn't
+//! appear free (i.e. accounting for shadowing) in F.
+//!
+//! ### α-conversion
+//! This involves renaming identifiers. It can be performed
+//! trivially for any expression containing identifiers,
+//! so it is not necessary to perform it for normalizing,
+//! unless two terms need to be compared (since they need
+//! to have the exact same variable names).
+//!
+//! Shadowing applies here, so replacing 'x' with 'y'
+//! in (λx:A.x B) x will afford (λx:A.x B) y. Same goes
+//! for (∀x:A.x B) x.
+//!
+//! TODO: α-conversion will be incorrect if the new name is bound.
+//!
+//! ## Type inference rules
+//! * Variables defined outside the term (in its containing
+//! _state_) take the type they were defined with.
+//! * _Prop_ has type _Type(1)_.
+//! * ∀x:A.B takes the type of B, with each free occurrence
+//! of 'x' within B taking type A.
+//! * λx:A.B takes type ∀x:A.T, with T being the type of B
+//! with each free occurrence of 'x' within B taking type A.
+//! * A B, where A has type ∀x:T.V, takes type V[x:=B].
+//!   - If A doesn't have such type, the term is invalid.
+//!   - If B is not of type T, the term is invalid.
+//! 
+
+/// A type containing extra information for debugging proofs.
 ///
 /// In principle, bugs in code manipulating this type
 /// should not affect proof checking, so this code is
@@ -339,7 +435,7 @@ impl Term {
     /// and this method returns true. Otherwise, it returns false
     /// and no change is performed.
     ///
-    /// (λx:T.F) P = f[x:=P]
+    /// (λx:T.F) P = F[x:=P]
     ///
     /// Please note that no type checking is performed.
     ///
