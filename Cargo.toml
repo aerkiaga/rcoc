@@ -1,2 +1,2 @@
 [workspace]
-members = ["rooster"]
+members = ["rooster", "rooster_kernel"]

@@ -1,11 +1,8 @@
 [package]
-name = "rooster"
+name = "rooster_kernel"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rooster_kernel = { path = "../rooster_kernel" }
-ariadne = "0.1.5"
-chumsky = "0.9.0"

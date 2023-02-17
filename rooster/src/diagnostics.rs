@@ -1,6 +1,6 @@
-use crate::kernel::KernelError;
 use ariadne::*;
 use chumsky::error::*;
+use rooster_kernel::KernelError;
 
 pub fn emit_parser_diagnostic(error: &Simple<char>, code: &String, source_id: &String) {
     let mut color_generator = ColorGenerator::new();

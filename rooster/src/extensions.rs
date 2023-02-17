@@ -243,6 +243,6 @@ pub fn translate_exists(a: Binding, b: Expression) -> Expression {
 pub fn translate_equivalence(a: Expression, b: Expression) -> Expression {
     translate_conjunction(
         translate_implication(a.clone(), b.clone()),
-        translate_implication(b, a)
+        translate_implication(b, a),
     )
 }
