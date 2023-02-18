@@ -80,5 +80,8 @@ let equivalence_implies_implication:
     conjunction_implies_operand(A -> B, B -> A, h, a)
 ;
 
+// inductive types
+let nat: Set = recursive(self: Set) @(T: ?) T -> {self -> T} -> T;
+
 
 

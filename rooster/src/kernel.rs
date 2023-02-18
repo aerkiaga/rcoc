@@ -35,6 +35,16 @@ pub fn new_term(expression: &Expression) -> Term {
             value_term: Box::new(new_term(value_expression)),
             debug_context: TermDebugContext::CodeSpan(*span),
         },
+        Expression::FixedPoint {
+            binding,
+            value_expression,
+            span,
+        } => Term::FixedPoint {
+            binding_identifier: binding.identifier.clone(),
+            binding_type: Box::new(new_term(&binding.type_expression)),
+            value_term: Box::new(new_term(value_expression)),
+            debug_context: TermDebugContext::CodeSpan(*span),
+        },
     }
 }
 

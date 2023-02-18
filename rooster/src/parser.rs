@@ -33,7 +33,11 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 .separated_by(just(',').ignored().padded_by(token_separator.clone()));
             let multiple_binding = identifier_list
                 .then_ignore(just(':').ignored().padded_by(token_separator.clone()))
-                .then(nested_expression.clone())
+                .then(
+                    just('?')
+                        .map_with_span(|_, sp: std::ops::Range<usize>| Expression::Identifier("?".to_string(), (sp.start(), sp.end())))
+                        .or(nested_expression.clone()),
+                )
                 .map(|t| {
                     t.0.iter()
                         .map(|x| Binding {
@@ -96,6 +100,21 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                         span: new_span,
                     }
                 });
+            let fixed_point_expression = just("recursive(")
+                .ignored()
+                .padded_by(token_separator.clone())
+                .then(binding_list.clone())
+                .map(|t| t.1)
+                .then_ignore(just(')').padded_by(token_separator.clone()))
+                .then(nested_expression.clone())
+                .foldr(|t, x| {
+                    let new_span = (t.span.0, x.get_span().1);
+                    Expression::FixedPoint {
+                        binding: t,
+                        value_expression: Box::new(x),
+                        span: new_span,
+                    }
+                });
             // alias: ∃x:A.B := ∀y:Prop.∀z:(∀x:A.(∀w:B.y)).y
             let exists_expression = just("exists(")
                 .ignored()
@@ -113,6 +132,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 brace_expression,
                 lambda_expression,
                 forall_expression,
+                fixed_point_expression,
                 exists_expression,
                 identifier_expression,
             ));
