@@ -19,8 +19,9 @@
 //! * A B, for terms A and B.
 //! * λx:A.B, for identifier 'x' and terms A and B.
 //! * ∀x:A.B, for identifier 'x' and terms A and B.
+//! * 𝐘x:A.B, for identifier 'x' and terms A and B.
 //!
-//! _Prop_ and _Type(1)_ are special, pre-defined identifiers.
+//! _?_, _Set_, _Prop_ and _Type(1)_ are special, pre-defined identifiers.
 //!
 //! The kernel offers two main operations on terms. The first
 //! is _normalizing_, which is equivalent to computation and
@@ -42,7 +43,7 @@
 //! x a x contains 'x' as a free variable, while
 //! λx.x a x doesn't. However, (λx.x a x) x does contain 'x'
 //! (the last occurrence). Same goes for terms involving
-//! ∀ instead of λ.
+//! ∀ or 𝐘 instead of λ.
 //!
 //! ## Substitution
 //! Substitution involves replacing a variable within
@@ -105,17 +106,41 @@
 //! Two terms that are equivalent up to α-conversion will
 //! always become identical after applying this to both.
 //!
+//! ### Fixed-point reduction
+//! An expression of the form 𝐘x:A.B will be replaced by
+//! (λx:A.B)(𝐘x:A.B). Note that this operation can succeed
+//! every time, _ad infinitum_, so the expression must be
+//! normalized before every fixed-point reduction. If the
+//! term is valid (which should have been checked), type
+//! rules will enforce eventual termination.
+//!
 //! ## Type inference rules
 //! * Variables defined outside the term (in its containing
 //! _state_) take the type they were defined with.
-//! * _Prop_ has type _Type(1)_.
+//! * _Set_ and _Prop_ have type _Type(1)_.
+//! * ? has type ?.
 //! * ∀x:A.B takes the type of B, with each free occurrence
 //! of 'x' within B taking type A.
+//!   - If A equals ?, however, the term takes type Set.
+//!     * In this case, occurrences of x must be at
+//!       strictly positive positions within B.
 //! * λx:A.B takes type ∀x:A.T, with T being the type of B
 //! with each free occurrence of 'x' within B taking type A.
 //! * A B, where A has type ∀x:T.V, takes type V[x:=B].
 //!   - If A doesn't have such type, the term is invalid.
 //!   - If B is not of type T, the term is invalid.
+//!     * This does not apply if T equals ?.
+//! * 𝐘x:A.B takes type B, with each free occurrence
+//! of 'x' within B taking type A.
+//!   - B can be an expression of the form ∀x1:A1.∀x2:A2. ... C
+//!     wherein each An only contains x strictly positively
+//!     and C doesn't freely contain x.
+//!   - B can also be an expression of the form λx1:A1.λx2:A2. ... C
+//!     wherein every occurrence of x in C reduces to
+//!     x y1 y2 ... and there is at least some i such that
+//!     every yi is captured by an abstraction passed to
+//!     xi, which type's type is Set.
+//!   - If B doesn't follow the above, the term is invalid.
 //!
 
 /// A type containing extra information for debugging proofs.
@@ -170,6 +195,14 @@ pub enum Term {
     /// Typed for all ... expression, i.e. ∀x:A.B,
     /// for any identifier x and terms A and B.
     Forall {
+        binding_identifier: String,
+        binding_type: Box<Term>,
+        value_term: Box<Term>,
+        debug_context: TermDebugContext,
+    },
+    /// Inductive Y combinator-like, i.e. 𝐘x:A.B,
+    /// for any identifier x and terms A and B.
+    FixedPoint {
         binding_identifier: String,
         binding_type: Box<Term>,
         value_term: Box<Term>,
@@ -246,6 +279,26 @@ impl PartialEq for Term {
                     false
                 }
             }
+            Self::FixedPoint {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                if let Self::FixedPoint {
+                    binding_identifier: binding_identifier2,
+                    binding_type: binding_type2,
+                    value_term: value_term2,
+                    debug_context: _,
+                } = other
+                {
+                    binding_identifier == binding_identifier2
+                        && binding_type == binding_type2
+                        && value_term == value_term2
+                } else {
+                    false
+                }
+            }
         }
     }
 }
@@ -279,6 +332,33 @@ pub enum KernelError {
         signature_context: TermDebugContext,
         definition_context: TermDebugContext,
     },
+    // Either the type definition or one of its parameters don't evaluate
+    // to a term of the form A1→A2→A3→...→B.
+    MisshapenInductiveDefinition {
+        unexpected_subterm: Term,
+        subterm_context: TermDebugContext,
+        full_term_context: TermDebugContext,
+    },
+    // An identifier is at a negative position in the type definition,
+    // which is not allowed (e.g. (x→B)→C).
+    NegativeInductiveDefinition {
+        negative_subterm: Term,
+        subterm_context: TermDebugContext,
+        full_term_context: TermDebugContext,
+    },
+    // Either the type definition or a recursive function
+    // don't evaluate to a term of the form A1→A2→A3→...→B
+    // or λx1:A1.λx2:A2.λx3:A3. ... B.
+    MisshapenRecursiveDefinition {
+        unexpected_subterm: Term,
+        subterm_context: TermDebugContext,
+        full_term_context: TermDebugContext,
+    },
+    // The function doesn't have any single parameter
+    // that is clearly decreasing for every recursive invocation.
+    NonprimitiveRecursiveFunction {
+        full_term_context: TermDebugContext,
+    },
 }
 
 /// Context that terms inhabit.
@@ -302,6 +382,12 @@ impl Term {
                 debug_context,
             } => debug_context,
             Self::Forall {
+                binding_identifier: _,
+                binding_type: _,
+                value_term: _,
+                debug_context,
+            } => debug_context,
+            Self::FixedPoint {
                 binding_identifier: _,
                 binding_type: _,
                 value_term: _,
@@ -344,6 +430,17 @@ impl Term {
                 value_term: value_term.clone(),
                 debug_context: new_debug_context.clone(),
             },
+            Self::FixedPoint {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => Self::FixedPoint {
+                binding_identifier: binding_identifier.clone(),
+                binding_type: binding_type.clone(),
+                value_term: value_term.clone(),
+                debug_context: new_debug_context.clone(),
+            },
         }
     }
 
@@ -367,6 +464,15 @@ impl Term {
                     || binding_identifier != identifier && value_term.contains(identifier)
             }
             Self::Forall {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.contains(identifier)
+                    || binding_identifier != identifier && value_term.contains(identifier)
+            }
+            Self::FixedPoint {
                 binding_identifier,
                 binding_type,
                 value_term,
@@ -483,6 +589,39 @@ impl Term {
                     value_term.replace(identifier, value);
                 }
             }
+            Self::FixedPoint {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.replace(identifier, value);
+                if binding_identifier != identifier {
+                    if value.contains(binding_identifier) {
+                        let mut suffix: u64 = 0;
+                        loop {
+                            let new_binding_identifier =
+                                format!("{}{}", binding_identifier, suffix);
+                            if !value_term.contains(&new_binding_identifier) {
+                                value_term.replace(
+                                    binding_identifier,
+                                    &Self::Identifier(
+                                        new_binding_identifier.clone(),
+                                        TermDebugContext::Ignore,
+                                    ),
+                                );
+                                *binding_identifier = new_binding_identifier;
+                                break;
+                            }
+                            if suffix == u64::MAX {
+                                panic!("Ran out of suffixes for variable renaming");
+                            }
+                            suffix += 1;
+                        }
+                    }
+                    value_term.replace(identifier, value);
+                }
+            }
         }
     }
 
@@ -529,6 +668,12 @@ impl Term {
                 debug_context: _,
             } => binding_type.beta_reduce() || value_term.beta_reduce(),
             Self::Forall {
+                binding_identifier: _,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => binding_type.beta_reduce() || value_term.beta_reduce(),
+            Self::FixedPoint {
                 binding_identifier: _,
                 binding_type,
                 value_term,
@@ -584,6 +729,12 @@ impl Term {
                 debug_context: _,
             } => binding_type.eta_reduce() || value_term.eta_reduce(),
             Self::Forall {
+                binding_identifier: _,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => binding_type.eta_reduce() || value_term.eta_reduce(),
+            Self::FixedPoint {
                 binding_identifier: _,
                 binding_type,
                 value_term,
@@ -663,6 +814,24 @@ impl Term {
                 }
                 value_term.alpha_normalize_recursive(next_suffix + 1);
             }
+            Self::FixedPoint {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.alpha_normalize_recursive(next_suffix);
+                let new_binding_identifier = format!("#{}", next_suffix);
+                value_term.replace(
+                    binding_identifier,
+                    &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
+                );
+                *binding_identifier = new_binding_identifier;
+                if next_suffix == u64::MAX {
+                    panic!("Ran out of suffixes for variable renaming");
+                }
+                value_term.alpha_normalize_recursive(next_suffix + 1);
+            }
         }
     }
 
@@ -675,8 +844,65 @@ impl Term {
         self.alpha_normalize_recursive(0)
     }
 
-    /// Applies `.delta_normalize()`, `.normalize()` and `.alpha_normalize()`,
-    /// in that order.
+    /// Applies fixed-point reduction, which transforms an expression
+    /// of the form 𝐘x:A.B into (λx:A.B)(𝐘x:A.B).
+    ///
+    /// If such a reduction is possible, this method will succeed
+    /// as many times as it is called. To prevent such behavior,
+    /// `.normalize()` should be called before each reduction.
+    ///
+    pub fn fixed_point_reduce(self: &mut Self) -> bool {
+        let self_clone = self.clone();
+        if let Self::FixedPoint {
+            binding_identifier,
+            binding_type,
+            value_term,
+            debug_context,
+        } = self
+        {
+            *self = Self::Application {
+                function_term: Box::new(Self::Lambda {
+                    binding_identifier: binding_identifier.clone(),
+                    binding_type: Box::new(*binding_type.clone()),
+                    value_term: Box::new(*value_term.clone()),
+                    debug_context: debug_context.clone(),
+                }),
+                parameter_term: Box::new(self_clone),
+                debug_context: debug_context.clone(),
+            };
+            return true;
+        }
+        match self {
+            Self::Identifier(_, _) => false,
+            Self::Application {
+                function_term,
+                parameter_term,
+                debug_context: _,
+            } => function_term.fixed_point_reduce() || parameter_term.fixed_point_reduce(),
+            Self::Lambda {
+                binding_identifier: _,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => binding_type.fixed_point_reduce() || value_term.fixed_point_reduce(),
+            Self::Forall {
+                binding_identifier: _,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => binding_type.fixed_point_reduce() || value_term.fixed_point_reduce(),
+            Self::FixedPoint {
+                binding_identifier: _,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => binding_type.fixed_point_reduce() || value_term.fixed_point_reduce(),
+        }
+    }
+
+    /// Applies `.delta_normalize()`, followed by alternating
+    /// `.normalize()` and `.fixed_point_reduce()`, and finally
+    /// `.alpha_normalize()`.
     ///
     /// Two equivalent terms always become identical after applying
     /// this method on both.
@@ -685,7 +911,12 @@ impl Term {
     ///
     pub fn full_normalize(self: &mut Self, state: &State) {
         self.delta_normalize(state);
-        self.normalize();
+        loop {
+            self.normalize();
+            if !self.fixed_point_reduce() {
+                break;
+            }
+        }
         self.alpha_normalize();
     }
 
@@ -709,6 +940,354 @@ impl Term {
                 value_term: _,
                 debug_context,
             } => debug_context,
+            Self::FixedPoint {
+                binding_identifier: _,
+                binding_type: _,
+                value_term: _,
+                debug_context,
+            } => debug_context,
+        }
+    }
+
+    fn check_strict_positivity(self: &Self, identifier: &String) -> Result<(), KernelError> {
+        let mut current_term = self;
+        loop {
+            current_term = match current_term {
+                Self::Identifier(_, _) => return Ok(()),
+                Self::Forall {
+                    binding_identifier: _,
+                    binding_type,
+                    value_term,
+                    debug_context: _,
+                } => {
+                    let mut inner_current_term = binding_type;
+                    loop {
+                        inner_current_term = match &**inner_current_term {
+                            Self::Identifier(_, _) => break,
+                            Self::Forall {
+                                binding_identifier: _,
+                                binding_type: inner_binding_type,
+                                value_term: inner_value_term,
+                                debug_context: _,
+                            } => {
+                                if inner_binding_type.contains(identifier) {
+                                    return Err(KernelError::NegativeInductiveDefinition {
+                                        negative_subterm: *inner_binding_type.clone(),
+                                        subterm_context: inner_binding_type
+                                            .get_debug_context()
+                                            .clone(),
+                                        full_term_context: self.get_debug_context().clone(),
+                                    });
+                                }
+                                &inner_value_term
+                            }
+                            _ => {
+                                return Err(KernelError::MisshapenInductiveDefinition {
+                                    unexpected_subterm: *inner_current_term.clone(),
+                                    subterm_context: inner_current_term.get_debug_context().clone(),
+                                    full_term_context: current_term.get_debug_context().clone(),
+                                })
+                            }
+                        }
+                    }
+                    value_term
+                }
+                _ => {
+                    return Err(KernelError::MisshapenInductiveDefinition {
+                        unexpected_subterm: current_term.clone(),
+                        subterm_context: current_term.get_debug_context().clone(),
+                        full_term_context: self.get_debug_context().clone(),
+                    })
+                }
+            }
+        }
+    }
+
+    fn check_strictly_decreasing_helper(
+        self: &Self,
+        index: usize,
+        parameter: &String,
+        allowed_parameters: &Vec<&String>,
+        recursive: &String,
+    ) -> bool {
+        match self {
+            Self::Identifier(s, _) => s != recursive,
+            Self::Application {
+                function_term,
+                parameter_term,
+                debug_context: _,
+            } => {
+                let mut current_term = self;
+                let mut parameter_list = vec![];
+                loop {
+                    if let Self::Application {
+                        function_term: current_function_term,
+                        parameter_term: current_parameter_term,
+                        debug_context: _,
+                    } = current_term
+                    {
+                        parameter_list.push(current_parameter_term);
+                        current_term = current_function_term;
+                    } else {
+                        break;
+                    }
+                }
+                if let Self::Identifier(s, _) = current_term {
+                    if s == recursive {
+                        // recursive A1 A2 A3 A4 ...
+                        let target_parameter = parameter_list[index];
+                        if let Self::Identifier(s2, _) = &**target_parameter {
+                            for candidate in allowed_parameters {
+                                if &s2 == candidate {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+                }
+                function_term.check_strictly_decreasing(index, parameter, recursive)
+                    && parameter_term.check_strictly_decreasing(index, parameter, recursive)
+            }
+            Self::Lambda {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.check_strictly_decreasing_helper(
+                    index,
+                    parameter,
+                    allowed_parameters,
+                    recursive,
+                ) && if binding_identifier == parameter {
+                    value_term.check_strictly_decreasing_helper(
+                        index,
+                        &"".to_string(),
+                        allowed_parameters,
+                        recursive,
+                    )
+                } else if binding_identifier == recursive {
+                    true
+                } else {
+                    for n in 0..allowed_parameters.len() {
+                        if binding_identifier == allowed_parameters[n] {
+                            let mut new_allowed_parameters = allowed_parameters.clone();
+                            new_allowed_parameters.remove(n);
+                            return value_term.check_strictly_decreasing_helper(
+                                index,
+                                &"".to_string(),
+                                &new_allowed_parameters,
+                                recursive,
+                            );
+                        }
+                    }
+                    value_term.check_strictly_decreasing_helper(
+                        index,
+                        &"".to_string(),
+                        allowed_parameters,
+                        recursive,
+                    )
+                }
+            }
+            Self::Forall {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.check_strictly_decreasing_helper(
+                    index,
+                    parameter,
+                    allowed_parameters,
+                    recursive,
+                ) && if binding_identifier == parameter {
+                    value_term.check_strictly_decreasing(index, &"".to_string(), recursive)
+                } else if binding_identifier == recursive {
+                    true
+                } else {
+                    for n in 0..allowed_parameters.len() {
+                        if binding_identifier == allowed_parameters[n] {
+                            let mut new_allowed_parameters = allowed_parameters.clone();
+                            new_allowed_parameters.remove(n);
+                            return value_term.check_strictly_decreasing_helper(
+                                index,
+                                &"".to_string(),
+                                &new_allowed_parameters,
+                                recursive,
+                            );
+                        }
+                    }
+                    value_term.check_strictly_decreasing_helper(
+                        index,
+                        &"".to_string(),
+                        allowed_parameters,
+                        recursive,
+                    )
+                }
+            }
+            Self::FixedPoint {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.check_strictly_decreasing_helper(
+                    index,
+                    parameter,
+                    allowed_parameters,
+                    recursive,
+                ) && if binding_identifier == parameter {
+                    value_term.check_strictly_decreasing(index, &"".to_string(), recursive)
+                } else if binding_identifier == recursive {
+                    true
+                } else {
+                    for n in 0..allowed_parameters.len() {
+                        if binding_identifier == allowed_parameters[n] {
+                            let mut new_allowed_parameters = allowed_parameters.clone();
+                            new_allowed_parameters.remove(n);
+                            return value_term.check_strictly_decreasing_helper(
+                                index,
+                                &"".to_string(),
+                                &new_allowed_parameters,
+                                recursive,
+                            );
+                        }
+                    }
+                    value_term.check_strictly_decreasing_helper(
+                        index,
+                        &"".to_string(),
+                        allowed_parameters,
+                        recursive,
+                    )
+                }
+            }
+        }
+    }
+
+    fn check_strictly_decreasing(
+        self: &Self,
+        index: usize,
+        parameter: &String,
+        recursive: &String,
+    ) -> bool {
+        match self {
+            Self::Identifier(s, _) => s != recursive,
+            Self::Application {
+                function_term,
+                parameter_term,
+                debug_context: _,
+            } => {
+                let mut current_term = self;
+                let mut parameter_list = vec![];
+                loop {
+                    if let Self::Application {
+                        function_term: current_function_term,
+                        parameter_term: current_parameter_term,
+                        debug_context: _,
+                    } = current_term
+                    {
+                        parameter_list.push(&**current_parameter_term);
+                        current_term = current_function_term;
+                    } else {
+                        break;
+                    }
+                }
+                if let Self::Identifier(s, _) = current_term {
+                    if s == parameter {
+                        // parameter A1 A2 A3 A4 ...
+                        let mut allowed_parameters = vec![];
+                        for sub_parameter in &parameter_list {
+                            if let Self::Identifier(s2, _) = sub_parameter {
+                                allowed_parameters.push(s2);
+                            }
+                        }
+                        for sub_parameter in &parameter_list {
+                            let mut current_term2 = *sub_parameter;
+                            let mut parameter_list2 = vec![];
+                            // Ai := λy1:B1.λy2:B2. ... current_term2
+                            loop {
+                                if let Self::Lambda {
+                                    binding_identifier: binding_identifier2,
+                                    binding_type: binding_type2,
+                                    value_term: value_term2,
+                                    debug_context: _,
+                                } = current_term2
+                                {
+                                    if !binding_type2
+                                        .check_strictly_decreasing(index, parameter, recursive)
+                                    {
+                                        return false;
+                                    }
+                                    parameter_list2.push(binding_identifier2);
+                                    current_term2 = &**value_term2;
+                                } else {
+                                    break;
+                                }
+                            }
+                            // any occurrences of recursive in current_term2
+                            // must contain one of parameter_list2 identifiers
+                            // as its index-th argument
+                            if !current_term2.check_strictly_decreasing_helper(
+                                index,
+                                parameter,
+                                &allowed_parameters,
+                                recursive,
+                            ) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                }
+                function_term.check_strictly_decreasing(index, parameter, recursive)
+                    && parameter_term.check_strictly_decreasing(index, parameter, recursive)
+            }
+            Self::Lambda {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.check_strictly_decreasing(index, parameter, recursive)
+                    && if binding_identifier == parameter {
+                        value_term.check_strictly_decreasing(index, &"".to_string(), recursive)
+                    } else if binding_identifier == recursive {
+                        true
+                    } else {
+                        value_term.check_strictly_decreasing(index, parameter, recursive)
+                    }
+            }
+            Self::Forall {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.check_strictly_decreasing(index, parameter, recursive)
+                    && if binding_identifier == parameter {
+                        value_term.check_strictly_decreasing(index, &"".to_string(), recursive)
+                    } else if binding_identifier == recursive {
+                        true
+                    } else {
+                        value_term.check_strictly_decreasing(index, parameter, recursive)
+                    }
+            }
+            Self::FixedPoint {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.check_strictly_decreasing(index, parameter, recursive)
+                    && if binding_identifier == parameter {
+                        value_term.check_strictly_decreasing(index, &"".to_string(), recursive)
+                    } else if binding_identifier == recursive {
+                        true
+                    } else {
+                        value_term.check_strictly_decreasing(index, parameter, recursive)
+                    }
+            }
         }
     }
 
@@ -719,9 +1298,15 @@ impl Term {
     ) -> Result<Self, KernelError> {
         match self {
             Self::Identifier(s, db) => {
-                if s == "Prop" {
+                if s == "Set" || s == "Prop" {
                     return Ok(Self::Identifier(
                         "Type(1)".to_string(),
+                        TermDebugContext::TypeOf(Box::new(db.clone())),
+                    ));
+                }
+                if s == "?" {
+                    return Ok(Self::Identifier(
+                        "?".to_string(),
                         TermDebugContext::TypeOf(Box::new(db.clone())),
                     ));
                 }
@@ -785,6 +1370,7 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
+                binding_type.infer_type_recursive(state, stack)?;
                 stack.push((binding_identifier.clone(), *binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
@@ -801,7 +1387,30 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
-                stack.push((binding_identifier.clone(), *binding_type.clone()));
+                binding_type.infer_type_recursive(state, stack)?;
+                let mut normalized_binding_type = binding_type.clone();
+                // TODO: see below
+                normalized_binding_type.full_normalize(state);
+                stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
+                if let Self::Identifier(s, _) = *normalized_binding_type {
+                    if s == "?" {
+                        // ∀x:?.M is a special case.
+                        // M is required to contain x only
+                        // at strictly positive positions,
+                        // and the entire term is of type Set.
+                        let mut value_term_clone = value_term.clone();
+                        // TODO: this will fail if value_term_clone
+                        // contains variables that are bound in an outer
+                        // scope but also within the state
+                        value_term_clone.full_normalize(state);
+                        value_term_clone.check_strict_positivity(binding_identifier)?;
+                        stack.pop();
+                        return Ok(Self::Identifier(
+                            "Set".to_string(),
+                            TermDebugContext::TypeOf(Box::new(debug_context.clone())),
+                        ));
+                    }
+                }
                 let mut inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
                 // replace after inferring inner type,
@@ -815,6 +1424,116 @@ impl Term {
                 }
                 Ok(inner_type)
             }
+            Self::FixedPoint {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                binding_type.infer_type_recursive(state, stack)?;
+                let mut normalized_binding_type = binding_type.clone();
+                // TODO: see above
+                normalized_binding_type.full_normalize(state);
+                stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
+                let inner_type = value_term.infer_type_recursive(state, stack)?;
+                let mut normalized_value_term = value_term.clone();
+                normalized_value_term.full_normalize(state);
+                match *normalized_value_term {
+                    Self::Lambda {
+                        binding_identifier: _,
+                        binding_type: _,
+                        value_term: _,
+                        debug_context: _,
+                    } => {
+                        // λx1:A1.λx2:A2. ... C
+                        // at least one Ai is of type Set
+                        // and its xi is applied on a closure
+                        // λz1:B1.λz2:B2. ... λyi:Ai.D
+                        // such that yi is the ith argument
+                        // to any binding_identifier within D
+                        let mut current_term = normalized_value_term;
+                        let mut parameter_list = vec![];
+                        loop {
+                            if let Self::Lambda {
+                                binding_identifier: current_binding_identifier,
+                                binding_type: current_binding_type,
+                                value_term: current_value_term,
+                                debug_context: _,
+                            } = *current_term
+                            {
+                                parameter_list.push((
+                                    current_binding_identifier.clone(),
+                                    current_binding_type.clone(),
+                                ));
+                                current_term = current_value_term;
+                            } else {
+                                break;
+                            }
+                        }
+                        let mut valid = false;
+                        for n in 0..parameter_list.len() {
+                            let parameter_type = &parameter_list[n].1;
+                            let parameter_type_type =
+                                parameter_type.infer_type_recursive(state, stack)?;
+                            if let Self::Identifier(s, _) = parameter_type_type {
+                                if s == "Set" {
+                                    if current_term.check_strictly_decreasing(
+                                        n,
+                                        &parameter_list[n].0,
+                                        binding_identifier,
+                                    ) {
+                                        for _m in 0..n {
+                                            stack.pop();
+                                        }
+                                        valid = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            stack.push((parameter_list[n].0.clone(), *parameter_list[n].1.clone()));
+                        }
+                        if !valid {
+                            return Err(KernelError::NonprimitiveRecursiveFunction {
+                                full_term_context: self.get_debug_context().clone(),
+                            });
+                        }
+                    }
+                    Self::Forall {
+                        binding_identifier: _,
+                        binding_type: _,
+                        value_term: _,
+                        debug_context: _,
+                    } => {
+                        // ∀x1:A1.∀x2:A2. ... C
+                        // every Ai can only contain binding_identifier
+                        // at strictly positive positions.
+                        let mut current_term = normalized_value_term;
+                        loop {
+                            if let Self::Forall {
+                                binding_identifier: _,
+                                binding_type: current_binding_type,
+                                value_term: current_value_term,
+                                debug_context: _,
+                            } = *current_term
+                            {
+                                current_binding_type.check_strict_positivity(binding_identifier)?;
+                                current_term = current_value_term;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    _ => {
+                        return Err(KernelError::MisshapenRecursiveDefinition {
+                            unexpected_subterm: *normalized_value_term.clone(),
+                            subterm_context: normalized_value_term.get_debug_context().clone(),
+                            full_term_context: self.get_debug_context().clone(),
+                        })
+                    }
+                }
+                stack.pop();
+                Ok(inner_type)
+            }
         }
     }
 
@@ -825,6 +1544,7 @@ impl Term {
     pub fn infer_type(self: &Self, state: &State) -> Result<Self, KernelError> {
         let mut stack = vec![];
         self.infer_type_recursive(state, &mut stack)
+        // Clear stack afterwards
     }
 }
 
@@ -922,6 +1642,19 @@ impl std::fmt::Debug for Term {
                     f.write_str(".")?;
                     value_term.fmt(f)?;
                 }
+            }
+            Term::FixedPoint {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                f.write_str("𝐘")?;
+                f.write_str(binding_identifier)?;
+                f.write_str(":")?;
+                binding_type.fmt(f)?;
+                f.write_str(".")?;
+                value_term.fmt(f)?;
             }
         }
         Result::Ok(())

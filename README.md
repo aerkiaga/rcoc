@@ -1,5 +1,5 @@
 # Rooster
-[![Kernel size](https://img.shields.io/badge/kernel-703%20SLOC-blue)](rooster_kernel/src/lib.rs)
+[![Kernel size](https://img.shields.io/badge/kernel-1363%20SLOC-blue)](rooster_kernel/src/lib.rs)
 
 An automated proof checker based on the Calculus of Constructions.
 
@@ -48,6 +48,7 @@ equivalence_implies_implication = λA:Prop.λB:Prop.conjunction_implies_operand 
 ## Features
 Core language:
  - [x] Calculus of Constructions
+ - [ ] Inductive types (_WIP_)
 
 Syntax extensions:
  - [x] Intuitionistic logic

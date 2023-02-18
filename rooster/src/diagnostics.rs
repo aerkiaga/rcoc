@@ -191,5 +191,6 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
                 .print((source_id, Source::from(code)))
                 .unwrap();
         }
+        _ => panic!("Unhandled kernel error"),
     }
 }
