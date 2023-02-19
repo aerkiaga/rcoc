@@ -83,5 +83,11 @@ let equivalence_implies_implication:
 // inductive types
 let nat: Set = recursive(self: Set) @(T: ?) T -> {self -> T} -> T;
 
+let O: nat = |T: ?(nat), a: T, b: nat -> T| a;
+let S: nat -> nat = |x: nat| |T: ?(nat), a: T, b: nat -> T| b(x);
+
+let add: nat -> nat -> nat = recursive(self: nat -> nat -> nat) |n, m: nat| n(
+    nat, m, |p: nat| S(self(p, m))
+);
 
 

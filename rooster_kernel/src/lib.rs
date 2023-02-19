@@ -114,6 +114,9 @@
 //! term is valid (which should have been checked), type
 //! rules will enforce eventual termination.
 //!
+//! Fixed-point reduction only operates if B is a term
+//! of the form λy:C.D. Otherwise, it does nothing.
+//!
 //! ## Type inference rules
 //! * Variables defined outside the term (in its containing
 //! _state_) take the type they were defined with.
@@ -851,7 +854,7 @@ impl Term {
     /// as many times as it is called. To prevent such behavior,
     /// `.normalize()` should be called before each reduction.
     ///
-    pub fn fixed_point_reduce(self: &mut Self) -> bool {
+    pub fn fixed_point_reduce(self: &mut Self, include_inductive: bool) -> bool {
         let self_clone = self.clone();
         if let Self::FixedPoint {
             binding_identifier,
@@ -860,17 +863,30 @@ impl Term {
             debug_context,
         } = self
         {
-            *self = Self::Application {
-                function_term: Box::new(Self::Lambda {
-                    binding_identifier: binding_identifier.clone(),
-                    binding_type: Box::new(*binding_type.clone()),
-                    value_term: Box::new(*value_term.clone()),
-                    debug_context: debug_context.clone(),
-                }),
-                parameter_term: Box::new(self_clone),
-                debug_context: debug_context.clone(),
+            let perform = if let Self::Lambda {
+                binding_identifier: _,
+                binding_type: _,
+                value_term: _,
+                debug_context: _,
+            } = **value_term
+            {
+                true
+            } else {
+                false
             };
-            return true;
+            if perform || include_inductive {
+                *self = Self::Application {
+                    function_term: Box::new(Self::Lambda {
+                        binding_identifier: binding_identifier.clone(),
+                        binding_type: Box::new(*binding_type.clone()),
+                        value_term: Box::new(*value_term.clone()),
+                        debug_context: debug_context.clone(),
+                    }),
+                    parameter_term: Box::new(self_clone),
+                    debug_context: debug_context.clone(),
+                };
+                return true;
+            }
         }
         match self {
             Self::Identifier(_, _) => false,
@@ -878,25 +894,37 @@ impl Term {
                 function_term,
                 parameter_term,
                 debug_context: _,
-            } => function_term.fixed_point_reduce() || parameter_term.fixed_point_reduce(),
+            } => {
+                function_term.fixed_point_reduce(include_inductive)
+                    || parameter_term.fixed_point_reduce(include_inductive)
+            }
             Self::Lambda {
                 binding_identifier: _,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => binding_type.fixed_point_reduce() || value_term.fixed_point_reduce(),
+            } => {
+                value_term.fixed_point_reduce(include_inductive)
+                    || binding_type.fixed_point_reduce(include_inductive)
+            }
             Self::Forall {
                 binding_identifier: _,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => binding_type.fixed_point_reduce() || value_term.fixed_point_reduce(),
+            } => {
+                value_term.fixed_point_reduce(include_inductive)
+                    || binding_type.fixed_point_reduce(include_inductive)
+            }
             Self::FixedPoint {
                 binding_identifier: _,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => binding_type.fixed_point_reduce() || value_term.fixed_point_reduce(),
+            } => {
+                value_term.fixed_point_reduce(include_inductive)
+                    || binding_type.fixed_point_reduce(include_inductive)
+            }
         }
     }
 
@@ -913,7 +941,7 @@ impl Term {
         self.delta_normalize(state);
         loop {
             self.normalize();
-            if !self.fixed_point_reduce() {
+            if !self.fixed_point_reduce(false) {
                 break;
             }
         }
@@ -1032,6 +1060,7 @@ impl Term {
                         break;
                     }
                 }
+                parameter_list.reverse();
                 if let Self::Identifier(s, _) = current_term {
                     if s == recursive {
                         // recursive A1 A2 A3 A4 ...
@@ -1046,8 +1075,17 @@ impl Term {
                         return false;
                     }
                 }
-                function_term.check_strictly_decreasing(index, parameter, recursive)
-                    && parameter_term.check_strictly_decreasing(index, parameter, recursive)
+                function_term.check_strictly_decreasing_helper(
+                    index,
+                    parameter,
+                    allowed_parameters,
+                    recursive,
+                ) && parameter_term.check_strictly_decreasing_helper(
+                    index,
+                    parameter,
+                    allowed_parameters,
+                    recursive,
+                )
             }
             Self::Lambda {
                 binding_identifier,
@@ -1196,12 +1234,6 @@ impl Term {
                 if let Self::Identifier(s, _) = current_term {
                     if s == parameter {
                         // parameter A1 A2 A3 A4 ...
-                        let mut allowed_parameters = vec![];
-                        for sub_parameter in &parameter_list {
-                            if let Self::Identifier(s2, _) = sub_parameter {
-                                allowed_parameters.push(s2);
-                            }
-                        }
                         for sub_parameter in &parameter_list {
                             let mut current_term2 = *sub_parameter;
                             let mut parameter_list2 = vec![];
@@ -1231,7 +1263,7 @@ impl Term {
                             if !current_term2.check_strictly_decreasing_helper(
                                 index,
                                 parameter,
-                                &allowed_parameters,
+                                &parameter_list2,
                                 recursive,
                             ) {
                                 return false;
@@ -1329,13 +1361,24 @@ impl Term {
                 debug_context,
             } => {
                 let new_debug_context = TermDebugContext::TypeOf(Box::new(debug_context.clone()));
-                let function_type = function_term.infer_type_recursive(state, stack)?;
+                let mut function_type = function_term.infer_type_recursive(state, stack)?;
+                if let Self::FixedPoint {
+                    binding_identifier,
+                    binding_type: _,
+                    value_term,
+                    debug_context: _,
+                } = &function_type
+                {
+                    let mut new_function_type = *value_term.clone();
+                    new_function_type.replace(&binding_identifier, &function_type);
+                    function_type = new_function_type;
+                }
                 match function_type {
                     Self::Forall {
                         binding_identifier,
                         binding_type,
                         value_term,
-                        debug_context: _,
+                        debug_context,
                     } => {
                         let mut parameter_type =
                             parameter_term.infer_type_recursive(state, stack)?;
@@ -1343,12 +1386,26 @@ impl Term {
                         let mut expected_parameter_type = binding_type.clone();
                         expected_parameter_type.full_normalize(state);
                         if parameter_type != *expected_parameter_type {
-                            return Err(KernelError::NonmatchingArgument {
-                                expected_type: *expected_parameter_type,
-                                observed_type: parameter_type,
-                                function_context: function_term.get_debug_context().clone(),
-                                parameter_context: parameter_term.get_debug_context().clone(),
-                            });
+                            let ignore = if let Self::Application {
+                                function_term: function_term2,
+                                parameter_term: _,
+                                debug_context: _,
+                            } = &*expected_parameter_type
+                            {
+                                **function_term2
+                                    == Self::Identifier("?".to_string(), debug_context.clone())
+                            } else {
+                                *expected_parameter_type
+                                    == Self::Identifier("?".to_string(), debug_context.clone())
+                            };
+                            if !ignore {
+                                return Err(KernelError::NonmatchingArgument {
+                                    expected_type: *expected_parameter_type,
+                                    observed_type: parameter_type,
+                                    function_context: function_term.get_debug_context().clone(),
+                                    parameter_context: parameter_term.get_debug_context().clone(),
+                                });
+                            }
                         }
                         let mut output_type = value_term.with_new_debug_context(&new_debug_context);
                         // replace after assigning new debug context,
@@ -1370,6 +1427,16 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
+                if let Self::Application {
+                    function_term,
+                    parameter_term,
+                    debug_context: _,
+                } = &**binding_type
+                {
+                    if **function_term == Self::Identifier("?".to_string(), debug_context.clone()) {
+                        return Ok(*parameter_term.clone());
+                    }
+                }
                 binding_type.infer_type_recursive(state, stack)?;
                 stack.push((binding_identifier.clone(), *binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
@@ -1436,8 +1503,8 @@ impl Term {
                 normalized_binding_type.full_normalize(state);
                 stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
-                let mut normalized_value_term = value_term.clone();
-                normalized_value_term.full_normalize(state);
+                let normalized_value_term = value_term.clone();
+                //normalized_value_term.full_normalize(state);
                 match *normalized_value_term {
                     Self::Lambda {
                         binding_identifier: _,
@@ -1678,15 +1745,19 @@ impl State {
     pub fn try_define(
         self: &mut Self,
         identifier: &String,
-        mut type_term: Term,
-        mut value_term: Term,
+        type_term: Term,
+        value_term: Term,
     ) -> Result<(), KernelError> {
-        type_term.infer_type(&self)?;
-        type_term.normalize();
-        let mut actual_type = value_term.infer_type(&self)?;
-        value_term.normalize();
+        let mut type_term_normalized = type_term.clone();
+        type_term_normalized.delta_normalize(self);
+        type_term_normalized.infer_type(&self)?;
+        type_term_normalized.normalize();
+        let mut value_term_normalized = value_term.clone();
+        value_term_normalized.delta_normalize(self);
+        let mut actual_type = value_term_normalized.infer_type(&self)?;
+        value_term_normalized.normalize();
         actual_type.full_normalize(self);
-        let mut expected_type = type_term.clone();
+        let mut expected_type = type_term_normalized.clone();
         expected_type.full_normalize(self);
         if expected_type != actual_type {
             return Err(KernelError::NonmatchingDefinition {

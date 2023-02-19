@@ -1,5 +1,5 @@
 # Rooster
-[![Kernel size](https://img.shields.io/badge/kernel-1363%20SLOC-blue)](rooster_kernel/src/lib.rs)
+[![Kernel size](https://img.shields.io/badge/kernel-1430%20SLOC-blue)](rooster_kernel/src/lib.rs)
 
 An automated proof checker based on the Calculus of Constructions.
 
@@ -43,6 +43,14 @@ disjunction_of_implication_is_commutative = λA:Prop.λB:Prop.disjunction_is_com
     :∀A:Prop.∀B:Prop.(∀$465:Prop.((A→B)→$465)→((B→A)→$465)→$465)→∀$474:Prop.((B→A)→$474)→((A→B)→$474)→$474
 equivalence_implies_implication = λA:Prop.λB:Prop.conjunction_implies_operand A→B B→A
     :∀A:Prop.∀B:Prop.(∀$494:Prop.((A→B)→(B→A)→$494)→$494)→A→B
+nat = 𝐘self:Set.∀T:?.T→(self→T)→T
+    :Set
+O = λT:? nat.λa:T.λb:nat→T.a
+    :nat
+S = λx:nat.λT:? nat.λa:T.λb:nat→T.b x
+    :nat→nat
+add = 𝐘self:nat→nat→nat.λn:nat.λm:nat.n nat m λp:nat.S (self p m
+    :nat→nat→nat
 ```
 
 ## Features
@@ -58,7 +66,7 @@ Syntax extensions:
 | CoC terms | `A(B)` `\|x: A\| B` `@(x: A) B` `Prop` `Type(n)` `{A}` |
 | CoC sentences | `let a: A = B;` |
 | Intuitionistic logic | `A -> B` `False` `^A` `A /\ B` `A \/ B` `exists(x: A) B` `A <-> B` |
-| Inductive types | `?` `recursive(x:A) B` `Set` |
+| Inductive types | `?` `recursive(x: A) B` `Set` |
 
 ## Acknowledgements
 
