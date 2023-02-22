@@ -106,15 +106,15 @@
 //! Two terms that are equivalent up to α-conversion will
 //! always become identical after applying this to both.
 //!
-//! ### Fixed-point reduction
+//! ### Fixed point reduction
 //! An expression of the form 𝐘x:A.B will be replaced by
 //! (λx:A.B)(𝐘x:A.B). Note that this operation can succeed
 //! every time, _ad infinitum_, so the expression must be
-//! normalized before every fixed-point reduction. If the
+//! normalized before every fixed point reduction. If the
 //! term is valid (which should have been checked), type
 //! rules will enforce eventual termination.
 //!
-//! Fixed-point reduction only operates if B is a term
+//! Fixed point reduction only operates if B is a term
 //! of the form λy:C.D. Otherwise, it does nothing.
 //!
 //! ## Type inference rules
@@ -122,32 +122,39 @@
 //! _state_) take the type they were defined with.
 //! * _Set_ and _Prop_ have type _Type(1)_.
 //! * ? has type ?.
-//! * ∀x:A.B takes the type of B, with each free occurrence
-//! of 'x' within B taking type A.
-//!   - If A is of the form ? G, then the term follows the
-//!     rules for **inductive types**.
+//! * A B uses the following rules:
+//!   - If A has type 𝐘x:S.W, its type is fixed point reduced
+//!     once and then normalized.
+//!   - Then, if A is of type ∀x:? G.V, rules for **match terms** apply.
+//!   - Otherwise, if A has type ∀x:T.V and B is of type T,
+//!     the term takes type V with 'x' replaced by B.
+//!   - If none of the two cases apply, the term is invalid.
 //! * λx:A.B takes type ∀x:A.T, with T being the type of B
 //! with each free occurrence of 'x' within B taking type A.
 //!   - If A is of the form ? I, then the term follows the
 //!     rules for **inductive instances**.
-//! * A B, where A has type ∀x:T.V, takes type V[x:=B].
-//!   - If A doesn't have such type, the term is invalid.
-//!   - If B is not of type T, the term is invalid.
-//!     * This does not apply if T equals ?.
+//! * ∀x:A.B takes the type of B, with each free occurrence
+//! of 'x' within B taking type A.
+//!   - If A is of the form ? G, then the term follows the
+//!     rules for **inductive types**.
 //! * 𝐘x:A.B takes type A, provided that B is also of type A.
 //!   Additionally, either of the following rules must apply:
 //!   - B, and thus 𝐘x:A.B, fulfills the rules for **inductive types**.
 //!   - 𝐘x:A.B fulfills the rules for **primitive recursive functions**.
 //!
+//! ### Match terms
+//! A match term is an expression of the form (∀x:? G.V) B
+//!
 //! ### Inductive types
 //! An inductive type has the form ∀T:? G.M, or alternatively
 //! 𝐘S:G.∀T:? G.M (i.e., the first form enclosed in a
-//! fixed-point operator).
+//! fixed point operator).
 //!
 //! Rules for type-checking are the following:
 //! * 'T' only appears _strictly positively_ within M.
 //! * 'S' only appears _strictly positively_ within each
 //!   parameter type of M.
+//! * G equals Set.
 //!
 //! ∀T:? G.M has type G if it fulfills the criteria
 //! above. 𝐘S:G.B has type G if B also has type G,
@@ -158,7 +165,7 @@
 //! λT:? I.M, where I is an inductive type.
 //!
 //! Rules for type-checking are the following:
-//! * M must have type equal to fixed-point-reduced I.
+//! * M must have type equal to fixed point-reduced I.
 //!
 //! λT:? I.M has type I if the above holds, otherwise
 //! it fails the type check.
@@ -416,14 +423,14 @@ impl Term {
                 binding_type: _,
                 value_term: _,
                 debug_context,
-            } => debug_context,
-            Self::Forall {
+            }
+            | Self::Forall {
                 binding_identifier: _,
                 binding_type: _,
                 value_term: _,
                 debug_context,
-            } => debug_context,
-            Self::FixedPoint {
+            }
+            | Self::FixedPoint {
                 binding_identifier: _,
                 binding_type: _,
                 value_term: _,
@@ -495,20 +502,14 @@ impl Term {
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.contains(identifier)
-                    || binding_identifier != identifier && value_term.contains(identifier)
             }
-            Self::Forall {
+            | Self::Forall {
                 binding_identifier,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.contains(identifier)
-                    || binding_identifier != identifier && value_term.contains(identifier)
             }
-            Self::FixedPoint {
+            | Self::FixedPoint {
                 binding_identifier,
                 binding_type,
                 value_term,
@@ -564,68 +565,14 @@ impl Term {
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.replace(identifier, value);
-                if binding_identifier != identifier {
-                    if value.contains(binding_identifier) {
-                        let mut suffix: u64 = 0;
-                        loop {
-                            let new_binding_identifier =
-                                format!("{}{}", binding_identifier, suffix);
-                            if !value_term.contains(&new_binding_identifier) {
-                                value_term.replace(
-                                    binding_identifier,
-                                    &Self::Identifier(
-                                        new_binding_identifier.clone(),
-                                        TermDebugContext::Ignore,
-                                    ),
-                                );
-                                *binding_identifier = new_binding_identifier;
-                                break;
-                            }
-                            if suffix == u64::MAX {
-                                panic!("Ran out of suffixes for variable renaming");
-                            }
-                            suffix += 1;
-                        }
-                    }
-                    value_term.replace(identifier, value);
-                }
             }
-            Self::Forall {
+            | Self::Forall {
                 binding_identifier,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.replace(identifier, value);
-                if binding_identifier != identifier {
-                    if value.contains(binding_identifier) {
-                        let mut suffix: u64 = 0;
-                        loop {
-                            let new_binding_identifier =
-                                format!("{}{}", binding_identifier, suffix);
-                            if !value_term.contains(&new_binding_identifier) {
-                                value_term.replace(
-                                    binding_identifier,
-                                    &Self::Identifier(
-                                        new_binding_identifier.clone(),
-                                        TermDebugContext::Ignore,
-                                    ),
-                                );
-                                *binding_identifier = new_binding_identifier;
-                                break;
-                            }
-                            if suffix == u64::MAX {
-                                panic!("Ran out of suffixes for variable renaming");
-                            }
-                            suffix += 1;
-                        }
-                    }
-                    value_term.replace(identifier, value);
-                }
             }
-            Self::FixedPoint {
+            | Self::FixedPoint {
                 binding_identifier,
                 binding_type,
                 value_term,
@@ -702,14 +649,14 @@ impl Term {
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => binding_type.beta_reduce() || value_term.beta_reduce(),
-            Self::Forall {
+            }
+            | Self::Forall {
                 binding_identifier: _,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => binding_type.beta_reduce() || value_term.beta_reduce(),
-            Self::FixedPoint {
+            }
+            | Self::FixedPoint {
                 binding_identifier: _,
                 binding_type,
                 value_term,
@@ -763,14 +710,14 @@ impl Term {
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => binding_type.eta_reduce() || value_term.eta_reduce(),
-            Self::Forall {
+            }
+            | Self::Forall {
                 binding_identifier: _,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => binding_type.eta_reduce() || value_term.eta_reduce(),
-            Self::FixedPoint {
+            }
+            | Self::FixedPoint {
                 binding_identifier: _,
                 binding_type,
                 value_term,
@@ -819,38 +766,14 @@ impl Term {
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.alpha_normalize_recursive(next_suffix);
-                let new_binding_identifier = format!("#{}", next_suffix);
-                value_term.replace(
-                    binding_identifier,
-                    &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
-                );
-                *binding_identifier = new_binding_identifier;
-                if next_suffix == u64::MAX {
-                    panic!("Ran out of suffixes for variable renaming");
-                }
-                value_term.alpha_normalize_recursive(next_suffix + 1);
             }
-            Self::Forall {
+            | Self::Forall {
                 binding_identifier,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.alpha_normalize_recursive(next_suffix);
-                let new_binding_identifier = format!("#{}", next_suffix);
-                value_term.replace(
-                    binding_identifier,
-                    &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
-                );
-                *binding_identifier = new_binding_identifier;
-                if next_suffix == u64::MAX {
-                    panic!("Ran out of suffixes for variable renaming");
-                }
-                value_term.alpha_normalize_recursive(next_suffix + 1);
             }
-            Self::FixedPoint {
+            | Self::FixedPoint {
                 binding_identifier,
                 binding_type,
                 value_term,
@@ -880,7 +803,7 @@ impl Term {
         self.alpha_normalize_recursive(0)
     }
 
-    /// Applies fixed-point reduction, which transforms an expression
+    /// Applies fixed point reduction, which transforms an expression
     /// of the form 𝐘x:A.B into (λx:A.B)(𝐘x:A.B).
     ///
     /// If such a reduction is possible, this method will succeed
@@ -936,20 +859,14 @@ impl Term {
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                value_term.fixed_point_reduce(include_inductive)
-                    || binding_type.fixed_point_reduce(include_inductive)
             }
-            Self::Forall {
+            | Self::Forall {
                 binding_identifier: _,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                value_term.fixed_point_reduce(include_inductive)
-                    || binding_type.fixed_point_reduce(include_inductive)
             }
-            Self::FixedPoint {
+            | Self::FixedPoint {
                 binding_identifier: _,
                 binding_type,
                 value_term,
@@ -994,14 +911,14 @@ impl Term {
                 binding_type: _,
                 value_term: _,
                 debug_context,
-            } => debug_context,
-            Self::Forall {
+            }
+            | Self::Forall {
                 binding_identifier: _,
                 binding_type: _,
                 value_term: _,
                 debug_context,
-            } => debug_context,
-            Self::FixedPoint {
+            }
+            | Self::FixedPoint {
                 binding_identifier: _,
                 binding_type: _,
                 value_term: _,
@@ -1009,7 +926,7 @@ impl Term {
             } => debug_context,
         }
     }
-    
+
     /// Collect an expression of the form A B C D ...
     /// into (A, [B, C, D, ...])
     fn collect_application(self: &Self) -> (&Self, Vec<&Self>) {
@@ -1023,10 +940,10 @@ impl Term {
                 remaining_params.1.push(parameter_term);
                 remaining_params
             }
-            _ => (self, vec![])
+            _ => (self, vec![]),
         }
     }
-    
+
     /// Collect an expression of the form λx:A.λy:B.λz:C. ... Z
     /// into (Z, [..., (z, C), (y, B), (x, A)])
     fn collect_lambda(self: &Self) -> (&Self, Vec<(&String, &Self)>) {
@@ -1041,10 +958,10 @@ impl Term {
                 remaining_params.1.push((binding_identifier, binding_type));
                 remaining_params
             }
-            _ => (self, vec![])
+            _ => (self, vec![]),
         }
     }
-    
+
     /// Collect an expression of the form ∀x:A.∀y:B.∀z:C. ... Z
     /// into (Z, [..., (z, C), (y, B), (x, A)])
     fn collect_forall(self: &Self) -> (&Self, Vec<(&String, &Self)>) {
@@ -1059,7 +976,7 @@ impl Term {
                 remaining_params.1.push((binding_identifier, binding_type));
                 remaining_params
             }
-            _ => (self, vec![])
+            _ => (self, vec![]),
         }
     }
 
@@ -1068,7 +985,8 @@ impl Term {
         let (forall_result, forall_params) = self.collect_forall();
         // Z must either be 'identifier' or not contain it at all
         if forall_result != &Self::Identifier(identifier.clone(), TermDebugContext::Ignore)
-        && forall_result.contains(identifier) {
+            && forall_result.contains(identifier)
+        {
             return Err(KernelError::MisshapenInductiveDefinition {
                 unexpected_subterm: forall_result.clone(),
                 subterm_context: forall_result.get_debug_context().clone(),
@@ -1080,7 +998,8 @@ impl Term {
             let (param_result, param_params) = param.1.collect_forall();
             // Z must either be 'identifier' or not contain it at all
             if param_result != &Self::Identifier(identifier.clone(), TermDebugContext::Ignore)
-            && param_result.contains(identifier) {
+                && param_result.contains(identifier)
+            {
                 return Err(KernelError::MisshapenInductiveDefinition {
                     unexpected_subterm: param_result.clone(),
                     subterm_context: param_result.get_debug_context().clone(),
@@ -1111,28 +1030,45 @@ impl Term {
         match self {
             Self::Identifier(s, _) => s != recursive,
             Self::Application {
-                function_term,
-                parameter_term,
+                function_term: _,
+                parameter_term: _,
                 debug_context: _,
             } => {
                 // parse 'self' as A B C D ...
                 let (application_function, application_params) = self.collect_application();
-                if application_function == &Self::Identifier(recursive.clone(), TermDebugContext::Ignore) {
+                if application_function
+                    == &Self::Identifier(recursive.clone(), TermDebugContext::Ignore)
+                {
                     // if A equals 'recursive'
                     for allowed_parameter in allowed_parameters {
                         // the 'index'-th parameter is in the list
-                        if application_params[index] == &Self::Identifier((*allowed_parameter).clone(), TermDebugContext::Ignore) {
+                        if application_params[index]
+                            == &Self::Identifier(
+                                (*allowed_parameter).clone(),
+                                TermDebugContext::Ignore,
+                            )
+                        {
                             return true;
                         }
                     }
                     false
                 } else {
                     for application_param in application_params {
-                        if !application_param.check_strictly_decreasing_helper(index, parameter, allowed_parameters, recursive) {
+                        if !application_param.check_strictly_decreasing_helper(
+                            index,
+                            parameter,
+                            allowed_parameters,
+                            recursive,
+                        ) {
                             return false;
                         }
                     }
-                    application_function.check_strictly_decreasing_helper(index, parameter, allowed_parameters, recursive)
+                    application_function.check_strictly_decreasing_helper(
+                        index,
+                        parameter,
+                        allowed_parameters,
+                        recursive,
+                    )
                 }
             }
             Self::Lambda {
@@ -1140,79 +1076,14 @@ impl Term {
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.check_strictly_decreasing_helper(
-                    index,
-                    parameter,
-                    allowed_parameters,
-                    recursive,
-                ) && if binding_identifier == parameter {
-                    value_term.check_strictly_decreasing_helper(
-                        index,
-                        &"".to_string(),
-                        allowed_parameters,
-                        recursive,
-                    )
-                } else if binding_identifier == recursive {
-                    true
-                } else {
-                    for n in 0..allowed_parameters.len() {
-                        if binding_identifier == allowed_parameters[n] {
-                            let mut new_allowed_parameters = allowed_parameters.clone();
-                            new_allowed_parameters.remove(n);
-                            return value_term.check_strictly_decreasing_helper(
-                                index,
-                                &"".to_string(),
-                                &new_allowed_parameters,
-                                recursive,
-                            );
-                        }
-                    }
-                    value_term.check_strictly_decreasing_helper(
-                        index,
-                        &"".to_string(),
-                        allowed_parameters,
-                        recursive,
-                    )
-                }
             }
-            Self::Forall {
+            | Self::Forall {
                 binding_identifier,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.check_strictly_decreasing_helper(
-                    index,
-                    parameter,
-                    allowed_parameters,
-                    recursive,
-                ) && if binding_identifier == parameter {
-                    value_term.check_strictly_decreasing(index, &"".to_string(), recursive)
-                } else if binding_identifier == recursive {
-                    true
-                } else {
-                    for n in 0..allowed_parameters.len() {
-                        if binding_identifier == allowed_parameters[n] {
-                            let mut new_allowed_parameters = allowed_parameters.clone();
-                            new_allowed_parameters.remove(n);
-                            return value_term.check_strictly_decreasing_helper(
-                                index,
-                                &"".to_string(),
-                                &new_allowed_parameters,
-                                recursive,
-                            );
-                        }
-                    }
-                    value_term.check_strictly_decreasing_helper(
-                        index,
-                        &"".to_string(),
-                        allowed_parameters,
-                        recursive,
-                    )
-                }
             }
-            Self::FixedPoint {
+            | Self::FixedPoint {
                 binding_identifier,
                 binding_type,
                 value_term,
@@ -1260,13 +1131,14 @@ impl Term {
         match self {
             Self::Identifier(s, _) => s != recursive,
             Self::Application {
-                function_term,
-                parameter_term,
+                function_term: _,
+                parameter_term: _,
                 debug_context: _,
             } => {
                 // parse 'self' as A B C D ...
                 let (application_function, application_params) = self.collect_application();
-                let match_entered = application_function == &Self::Identifier(parameter.clone(), TermDebugContext::Ignore);
+                let match_entered = application_function
+                    == &Self::Identifier(parameter.clone(), TermDebugContext::Ignore);
                 for application_param in application_params {
                     if match_entered {
                         // if A is 'parameter', then
@@ -1274,14 +1146,23 @@ impl Term {
                         let (lambda_result, lambda_params) = application_param.collect_lambda();
                         // check A, B, C ...
                         for lambda_param in &lambda_params {
-                            if !lambda_param.1.check_strictly_decreasing(index, parameter, recursive) {
+                            if !lambda_param
+                                .1
+                                .check_strictly_decreasing(index, parameter, recursive)
+                            {
                                 return false;
                             }
                         }
                         // check Z
-                        return lambda_result.check_strictly_decreasing_helper(index, parameter, &lambda_params.into_iter().map(|x| x.0).collect(), recursive);
+                        return lambda_result.check_strictly_decreasing_helper(
+                            index,
+                            parameter,
+                            &lambda_params.into_iter().map(|x| x.0).collect(),
+                            recursive,
+                        );
                     } else {
-                        if !application_param.check_strictly_decreasing(index, parameter, recursive) {
+                        if !application_param.check_strictly_decreasing(index, parameter, recursive)
+                        {
                             return false;
                         }
                     }
@@ -1293,32 +1174,14 @@ impl Term {
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.check_strictly_decreasing(index, parameter, recursive)
-                    && if binding_identifier == parameter {
-                        value_term.check_strictly_decreasing(index, &"".to_string(), recursive)
-                    } else if binding_identifier == recursive {
-                        true
-                    } else {
-                        value_term.check_strictly_decreasing(index, parameter, recursive)
-                    }
             }
-            Self::Forall {
+            | Self::Forall {
                 binding_identifier,
                 binding_type,
                 value_term,
                 debug_context: _,
-            } => {
-                binding_type.check_strictly_decreasing(index, parameter, recursive)
-                    && if binding_identifier == parameter {
-                        value_term.check_strictly_decreasing(index, &"".to_string(), recursive)
-                    } else if binding_identifier == recursive {
-                        true
-                    } else {
-                        value_term.check_strictly_decreasing(index, parameter, recursive)
-                    }
             }
-            Self::FixedPoint {
+            | Self::FixedPoint {
                 binding_identifier,
                 binding_type,
                 value_term,
@@ -1343,23 +1206,27 @@ impl Term {
     ) -> Result<Self, KernelError> {
         match self {
             Self::Identifier(s, db) => {
+                // Set and Prop are type Type(1)
                 if s == "Set" || s == "Prop" {
                     return Ok(Self::Identifier(
                         "Type(1)".to_string(),
                         TermDebugContext::TypeOf(Box::new(db.clone())),
                     ));
                 }
+                // ? is type ?
                 if s == "?" {
                     return Ok(Self::Identifier(
                         "?".to_string(),
                         TermDebugContext::TypeOf(Box::new(db.clone())),
                     ));
                 }
+                // captured variables get their corresponding type
                 for n in (0..stack.len()).rev() {
                     if s == &stack[n].0 {
                         return Ok(stack[n].1.clone());
                     }
                 }
+                // state variables get their corresponding type
                 match state.terms.get(s) {
                     Some(t) => Ok(t.0.clone()),
                     None => Err(KernelError::UndefinedIdentifier {
@@ -1408,8 +1275,7 @@ impl Term {
                                 **function_term2
                                     == Self::Identifier("?".to_string(), debug_context.clone())
                             } else {
-                                *expected_parameter_type
-                                    == Self::Identifier("?".to_string(), debug_context.clone())
+                                false
                             };
                             if !ignore {
                                 return Err(KernelError::NonmatchingArgument {
@@ -1467,23 +1333,23 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
-                binding_type.infer_type_recursive(state, stack)?;
-                let mut normalized_binding_type = binding_type.clone();
-                // TODO: see below
-                normalized_binding_type.full_normalize(state);
-                stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
-                if let Self::Identifier(s, _) = *normalized_binding_type {
-                    if s == "?" {
-                        // ∀x:?.M is a special case.
+                stack.push((binding_identifier.clone(), *binding_type.clone()));
+                if let Self::Application {
+                    function_term,
+                    parameter_term,
+                    debug_context: _,
+                } = &**binding_type
+                {
+                    if **function_term
+                        == Self::Identifier("?".to_string(), TermDebugContext::Ignore)
+                        && **parameter_term
+                            == Self::Identifier("Set".to_string(), TermDebugContext::Ignore)
+                    {
+                        // ∀x:? Set.M is a special case.
                         // M is required to contain x only
                         // at strictly positive positions,
                         // and the entire term is of type Set.
-                        let mut value_term_clone = value_term.clone();
-                        // TODO: this will fail if value_term_clone
-                        // contains variables that are bound in an outer
-                        // scope but also within the state
-                        value_term_clone.full_normalize(state);
-                        value_term_clone.check_strict_positivity(binding_identifier)?;
+                        value_term.check_strict_positivity(binding_identifier)?;
                         stack.pop();
                         return Ok(Self::Identifier(
                             "Set".to_string(),
@@ -1493,6 +1359,7 @@ impl Term {
                 }
                 let mut inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
+                binding_type.infer_type_recursive(state, stack)?;
                 // replace after inferring inner type,
                 // so that the type of ∀x:P.Q
                 // is not just shown as the type of Q
@@ -1516,9 +1383,7 @@ impl Term {
                 normalized_binding_type.full_normalize(state);
                 stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
-                let normalized_value_term = value_term.clone();
-                //normalized_value_term.full_normalize(state);
-                match *normalized_value_term {
+                match &**value_term {
                     Self::Lambda {
                         binding_identifier: _,
                         binding_type: _,
@@ -1531,7 +1396,7 @@ impl Term {
                         // λz1:B1.λz2:B2. ... λyi:Ai.D
                         // such that yi is the ith argument
                         // to any binding_identifier within D
-                        let mut current_term = normalized_value_term;
+                        let mut current_term = value_term;
                         let mut parameter_list = vec![];
                         loop {
                             if let Self::Lambda {
@@ -1539,7 +1404,7 @@ impl Term {
                                 binding_type: current_binding_type,
                                 value_term: current_value_term,
                                 debug_context: _,
-                            } = *current_term
+                            } = &**current_term
                             {
                                 parameter_list.push((
                                     current_binding_identifier.clone(),
@@ -1587,14 +1452,14 @@ impl Term {
                         // ∀x1:A1.∀x2:A2. ... C
                         // every Ai can only contain binding_identifier
                         // at strictly positive positions.
-                        let mut current_term = normalized_value_term;
+                        let mut current_term = value_term;
                         loop {
                             if let Self::Forall {
                                 binding_identifier: _,
                                 binding_type: current_binding_type,
                                 value_term: current_value_term,
                                 debug_context: _,
-                            } = *current_term
+                            } = &**current_term
                             {
                                 current_binding_type.check_strict_positivity(binding_identifier)?;
                                 current_term = current_value_term;
@@ -1605,8 +1470,8 @@ impl Term {
                     }
                     _ => {
                         return Err(KernelError::MisshapenRecursiveDefinition {
-                            unexpected_subterm: *normalized_value_term.clone(),
-                            subterm_context: normalized_value_term.get_debug_context().clone(),
+                            unexpected_subterm: *value_term.clone(),
+                            subterm_context: value_term.get_debug_context().clone(),
                             full_term_context: self.get_debug_context().clone(),
                         })
                     }
