@@ -1,5 +1,5 @@
 # Rooster
-[![Kernel size](https://img.shields.io/badge/kernel-1430%20SLOC-blue)](rooster_kernel/src/lib.rs)
+[![Kernel size](https://img.shields.io/badge/kernel-1394%20SLOC-blue)](rooster_kernel/src/lib.rs)
 
 An automated proof checker based on the Calculus of Constructions.
 

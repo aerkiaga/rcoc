@@ -53,7 +53,7 @@
 //! There's a special case to consider. If the new term
 //! contains free variables that would become bound upon
 //! substitution, renaming is performed. For example,
-//! consider the term λx:A.y x., where 'y' is to be
+//! consider the term λx:A.y x, where 'y' is to be
 //! replaced by a term containing a free occurrence of 'x'.
 //! Substituting it into the inner scope would bind 'x',
 //! so it would refer to a different variable than it should.
@@ -1009,59 +1009,96 @@ impl Term {
             } => debug_context,
         }
     }
+    
+    /// Collect an expression of the form A B C D ...
+    /// into (A, [B, C, D, ...])
+    fn collect_application(self: &Self) -> (&Self, Vec<&Self>) {
+        match self {
+            Self::Application {
+                function_term,
+                parameter_term,
+                debug_context: _,
+            } => {
+                let mut remaining_params = function_term.collect_application();
+                remaining_params.1.push(parameter_term);
+                remaining_params
+            }
+            _ => (self, vec![])
+        }
+    }
+    
+    /// Collect an expression of the form λx:A.λy:B.λz:C. ... Z
+    /// into (Z, [..., (z, C), (y, B), (x, A)])
+    fn collect_lambda(self: &Self) -> (&Self, Vec<(&String, &Self)>) {
+        match self {
+            Self::Lambda {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                let mut remaining_params = value_term.collect_lambda();
+                remaining_params.1.push((binding_identifier, binding_type));
+                remaining_params
+            }
+            _ => (self, vec![])
+        }
+    }
+    
+    /// Collect an expression of the form ∀x:A.∀y:B.∀z:C. ... Z
+    /// into (Z, [..., (z, C), (y, B), (x, A)])
+    fn collect_forall(self: &Self) -> (&Self, Vec<(&String, &Self)>) {
+        match self {
+            Self::Forall {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                let mut remaining_params = value_term.collect_forall();
+                remaining_params.1.push((binding_identifier, binding_type));
+                remaining_params
+            }
+            _ => (self, vec![])
+        }
+    }
 
     fn check_strict_positivity(self: &Self, identifier: &String) -> Result<(), KernelError> {
-        let mut current_term = self;
-        loop {
-            current_term = match current_term {
-                Self::Identifier(_, _) => return Ok(()),
-                Self::Forall {
-                    binding_identifier: _,
-                    binding_type,
-                    value_term,
-                    debug_context: _,
-                } => {
-                    let mut inner_current_term = binding_type;
-                    loop {
-                        inner_current_term = match &**inner_current_term {
-                            Self::Identifier(_, _) => break,
-                            Self::Forall {
-                                binding_identifier: _,
-                                binding_type: inner_binding_type,
-                                value_term: inner_value_term,
-                                debug_context: _,
-                            } => {
-                                if inner_binding_type.contains(identifier) {
-                                    return Err(KernelError::NegativeInductiveDefinition {
-                                        negative_subterm: *inner_binding_type.clone(),
-                                        subterm_context: inner_binding_type
-                                            .get_debug_context()
-                                            .clone(),
-                                        full_term_context: self.get_debug_context().clone(),
-                                    });
-                                }
-                                &inner_value_term
-                            }
-                            _ => {
-                                return Err(KernelError::MisshapenInductiveDefinition {
-                                    unexpected_subterm: *inner_current_term.clone(),
-                                    subterm_context: inner_current_term.get_debug_context().clone(),
-                                    full_term_context: current_term.get_debug_context().clone(),
-                                })
-                            }
-                        }
-                    }
-                    value_term
-                }
-                _ => {
-                    return Err(KernelError::MisshapenInductiveDefinition {
-                        unexpected_subterm: current_term.clone(),
-                        subterm_context: current_term.get_debug_context().clone(),
+        // parse 'self' as ∀x:A.∀y:B.∀z:C. ... Z
+        let (forall_result, forall_params) = self.collect_forall();
+        // Z must either be 'identifier' or not contain it at all
+        if forall_result != &Self::Identifier(identifier.clone(), TermDebugContext::Ignore)
+        && forall_result.contains(identifier) {
+            return Err(KernelError::MisshapenInductiveDefinition {
+                unexpected_subterm: forall_result.clone(),
+                subterm_context: forall_result.get_debug_context().clone(),
+                full_term_context: self.get_debug_context().clone(),
+            });
+        }
+        for param in forall_params {
+            // parse each parameter type as ∀x:A.∀y:B.∀z:C. ... Z
+            let (param_result, param_params) = param.1.collect_forall();
+            // Z must either be 'identifier' or not contain it at all
+            if param_result != &Self::Identifier(identifier.clone(), TermDebugContext::Ignore)
+            && param_result.contains(identifier) {
+                return Err(KernelError::MisshapenInductiveDefinition {
+                    unexpected_subterm: param_result.clone(),
+                    subterm_context: param_result.get_debug_context().clone(),
+                    full_term_context: self.get_debug_context().clone(),
+                });
+            }
+            for param_param in param_params {
+                // parameter types must not contain 'identifier' at all
+                if param_param.1.contains(identifier) {
+                    return Err(KernelError::NegativeInductiveDefinition {
+                        negative_subterm: param_param.1.clone(),
+                        subterm_context: param_param.1.get_debug_context().clone(),
                         full_term_context: self.get_debug_context().clone(),
-                    })
+                    });
                 }
             }
         }
+        Ok(())
     }
 
     fn check_strictly_decreasing_helper(
@@ -1078,47 +1115,25 @@ impl Term {
                 parameter_term,
                 debug_context: _,
             } => {
-                let mut current_term = self;
-                let mut parameter_list = vec![];
-                loop {
-                    if let Self::Application {
-                        function_term: current_function_term,
-                        parameter_term: current_parameter_term,
-                        debug_context: _,
-                    } = current_term
-                    {
-                        parameter_list.push(current_parameter_term);
-                        current_term = current_function_term;
-                    } else {
-                        break;
-                    }
-                }
-                parameter_list.reverse();
-                if let Self::Identifier(s, _) = current_term {
-                    if s == recursive {
-                        // recursive A1 A2 A3 A4 ...
-                        let target_parameter = parameter_list[index];
-                        if let Self::Identifier(s2, _) = &**target_parameter {
-                            for candidate in allowed_parameters {
-                                if &s2 == candidate {
-                                    return true;
-                                }
-                            }
+                // parse 'self' as A B C D ...
+                let (application_function, application_params) = self.collect_application();
+                if application_function == &Self::Identifier(recursive.clone(), TermDebugContext::Ignore) {
+                    // if A equals 'recursive'
+                    for allowed_parameter in allowed_parameters {
+                        // the 'index'-th parameter is in the list
+                        if application_params[index] == &Self::Identifier((*allowed_parameter).clone(), TermDebugContext::Ignore) {
+                            return true;
                         }
-                        return false;
                     }
+                    false
+                } else {
+                    for application_param in application_params {
+                        if !application_param.check_strictly_decreasing_helper(index, parameter, allowed_parameters, recursive) {
+                            return false;
+                        }
+                    }
+                    application_function.check_strictly_decreasing_helper(index, parameter, allowed_parameters, recursive)
                 }
-                function_term.check_strictly_decreasing_helper(
-                    index,
-                    parameter,
-                    allowed_parameters,
-                    recursive,
-                ) && parameter_term.check_strictly_decreasing_helper(
-                    index,
-                    parameter,
-                    allowed_parameters,
-                    recursive,
-                )
             }
             Self::Lambda {
                 binding_identifier,
@@ -1249,64 +1264,29 @@ impl Term {
                 parameter_term,
                 debug_context: _,
             } => {
-                let mut current_term = self;
-                let mut parameter_list = vec![];
-                loop {
-                    if let Self::Application {
-                        function_term: current_function_term,
-                        parameter_term: current_parameter_term,
-                        debug_context: _,
-                    } = current_term
-                    {
-                        parameter_list.push(&**current_parameter_term);
-                        current_term = current_function_term;
-                    } else {
-                        break;
-                    }
-                }
-                if let Self::Identifier(s, _) = current_term {
-                    if s == parameter {
-                        // parameter A1 A2 A3 A4 ...
-                        for sub_parameter in &parameter_list {
-                            let mut current_term2 = *sub_parameter;
-                            let mut parameter_list2 = vec![];
-                            // Ai := λy1:B1.λy2:B2. ... current_term2
-                            loop {
-                                if let Self::Lambda {
-                                    binding_identifier: binding_identifier2,
-                                    binding_type: binding_type2,
-                                    value_term: value_term2,
-                                    debug_context: _,
-                                } = current_term2
-                                {
-                                    if !binding_type2
-                                        .check_strictly_decreasing(index, parameter, recursive)
-                                    {
-                                        return false;
-                                    }
-                                    parameter_list2.push(binding_identifier2);
-                                    current_term2 = &**value_term2;
-                                } else {
-                                    break;
-                                }
-                            }
-                            // any occurrences of recursive in current_term2
-                            // must contain one of parameter_list2 identifiers
-                            // as its index-th argument
-                            if !current_term2.check_strictly_decreasing_helper(
-                                index,
-                                parameter,
-                                &parameter_list2,
-                                recursive,
-                            ) {
+                // parse 'self' as A B C D ...
+                let (application_function, application_params) = self.collect_application();
+                let match_entered = application_function == &Self::Identifier(parameter.clone(), TermDebugContext::Ignore);
+                for application_param in application_params {
+                    if match_entered {
+                        // if A is 'parameter', then
+                        // parse each sub-parameter as λx:A.λy:B.λz:C. ... Z
+                        let (lambda_result, lambda_params) = application_param.collect_lambda();
+                        // check A, B, C ...
+                        for lambda_param in &lambda_params {
+                            if !lambda_param.1.check_strictly_decreasing(index, parameter, recursive) {
                                 return false;
                             }
                         }
-                        return true;
+                        // check Z
+                        return lambda_result.check_strictly_decreasing_helper(index, parameter, &lambda_params.into_iter().map(|x| x.0).collect(), recursive);
+                    } else {
+                        if !application_param.check_strictly_decreasing(index, parameter, recursive) {
+                            return false;
+                        }
                     }
                 }
-                function_term.check_strictly_decreasing(index, parameter, recursive)
-                    && parameter_term.check_strictly_decreasing(index, parameter, recursive)
+                true
             }
             Self::Lambda {
                 binding_identifier,
