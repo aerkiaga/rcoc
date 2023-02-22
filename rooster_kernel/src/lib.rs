@@ -124,27 +124,60 @@
 //! * ? has type ?.
 //! * ∀x:A.B takes the type of B, with each free occurrence
 //! of 'x' within B taking type A.
-//!   - If A equals ?, however, the term takes type Set.
-//!     * In this case, occurrences of x must be at
-//!       strictly positive positions within B.
+//!   - If A is of the form ? G, then the term follows the
+//!     rules for **inductive types**.
 //! * λx:A.B takes type ∀x:A.T, with T being the type of B
 //! with each free occurrence of 'x' within B taking type A.
+//!   - If A is of the form ? I, then the term follows the
+//!     rules for **inductive instances**.
 //! * A B, where A has type ∀x:T.V, takes type V[x:=B].
 //!   - If A doesn't have such type, the term is invalid.
 //!   - If B is not of type T, the term is invalid.
 //!     * This does not apply if T equals ?.
-//! * 𝐘x:A.B takes type B, with each free occurrence
-//! of 'x' within B taking type A.
-//!   - B can be an expression of the form ∀x1:A1.∀x2:A2. ... C
-//!     wherein each An only contains x strictly positively
-//!     and C doesn't freely contain x.
-//!   - B can also be an expression of the form λx1:A1.λx2:A2. ... C
-//!     wherein every occurrence of x in C reduces to
-//!     x y1 y2 ... and there is at least some i such that
-//!     every yi is captured by an abstraction passed to
-//!     xi, which type's type is Set.
-//!   - If B doesn't follow the above, the term is invalid.
+//! * 𝐘x:A.B takes type A, provided that B is also of type A.
+//!   Additionally, either of the following rules must apply:
+//!   - B, and thus 𝐘x:A.B, fulfills the rules for **inductive types**.
+//!   - 𝐘x:A.B fulfills the rules for **primitive recursive functions**.
 //!
+//! ### Inductive types
+//! An inductive type has the form ∀T:? G.M, or alternatively
+//! 𝐘S:G.∀T:? G.M (i.e., the first form enclosed in a
+//! fixed-point operator).
+//!
+//! Rules for type-checking are the following:
+//! * 'T' only appears _strictly positively_ within M.
+//! * 'S' only appears _strictly positively_ within each
+//!   parameter type of M.
+//!
+//! ∀T:? G.M has type G if it fulfills the criteria
+//! above. 𝐘S:G.B has type G if B also has type G,
+//! otherwise fails to check.
+//!
+//! ### Inductive instances
+//! An instance of an inductive type has the form
+//! λT:? I.M, where I is an inductive type.
+//!
+//! Rules for type-checking are the following:
+//! * M must have type equal to fixed-point-reduced I.
+//!
+//! λT:? I.M has type I if the above holds, otherwise
+//! it fails the type check.
+//!
+//! ### Primitive recursive functions
+//! These are objects of the form 𝐘s:T.F, wherein
+//! F is not an **inductive type**.
+//!
+//! Being F of the form λx1:A1.λx2:A2. ... D, there
+//! must be some i such that Ai is an **inductive
+//! type** and 's' does not occur anywhere within D
+//! _except_ when fulfilling the condition below.
+//!
+//! If a sub-expression within D is of the form
+//! xi P1 P2 P3 ..., and any such Pj is itself
+//! of the form λy1:B1.λy2:B2. ... E, then E
+//! can contain an expression s Q1 Q2 Q3 ...,
+//! provided that Qi (note the i index from above)
+//! is exactly one of the variables in y1, y2, y3 ...
 
 /// A type containing extra information for debugging proofs.
 ///

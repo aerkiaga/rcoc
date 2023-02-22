@@ -18,7 +18,7 @@ chumsky = "0.9.0"
 
 [package.metadata.bundle]
 name = "Rooster"
-identifier = "ioo.github.aerkiaga.rooster"
+identifier = "io.github.aerkiaga.rooster"
 version = "0.1.0"
 copyright = "Copyright (c) Aritz Erkiaga Fernández 2023. Distributed under the GNU GPL license, version 3.0."
 category = "Development"
