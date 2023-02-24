@@ -125,7 +125,7 @@
 //! * A B uses the following rules:
 //!   - If A has type 𝐘x:S.W, its type is fixed point reduced
 //!     once and then normalized.
-//!   - Then, if A is of type ∀x:? G.V, rules for **match terms** apply.
+//!   - Then, if A is of type ∀x:? G.M, rules for **match terms** apply.
 //!   - Otherwise, if A has type ∀x:T.V and B is of type T,
 //!     the term takes type V with 'x' replaced by B.
 //!   - If none of the two cases apply, the term is invalid.
@@ -143,7 +143,27 @@
 //!   - 𝐘x:A.B fulfills the rules for **primitive recursive functions**.
 //!
 //! ### Match terms
-//! A match term is an expression of the form (∀x:? G.V) B
+//! A match term is an expression of the form A B,
+//! wherein A has a type that is an **inductive type**.
+//!
+//! Regular type rules are applied, except when A is an
+//! identifier and B contains A. Then, each occurrence of A
+//! is replaced by a different **inductive instance** when
+//! inferring the type of A B.
+//!
+//! If the type of A is of the form ∀T:? G.∀x1:X1.∀x2:X2. ... T,
+//! then that occurrence of 'T' is replaced by B without
+//! modifying occurrences of A within B.
+//!
+//! If any of those Xi sub-terms contain 'T', it will occur
+//! as ∀y1:Y1.∀y2:Y2. ... T, due to the requirements for
+//! **inductive types**. Then, before replacing 'T' with B,
+//! every occurrence of A within B will be replaced by
+//! λT:? G.λx1:X1'.λx2:X2'. ... Q, where every Xj' equals
+//! its corresponding Xj after replacing ∀ expressions with λ,
+//! and Q equals xi y1 y2 ... (note the i index from the
+//! outer expression, xi from the inner term and yi from the
+//! outer term).
 //!
 //! ### Inductive types
 //! An inductive type has the form ∀T:? G.M, or alternatively
@@ -980,6 +1000,24 @@ impl Term {
         }
     }
 
+    /// Collect an expression of the form ∀x:A.∀y:B.∀z:C. ... Z
+    /// into (Z, [..., (z, C), (y, B), (x, A)])
+    fn collect_forall_mut(self: &mut Self) -> (&mut Self, Vec<(&mut String, &mut Self)>) {
+        match self {
+            Self::Forall {
+                binding_identifier,
+                binding_type,
+                value_term,
+                debug_context: _,
+            } => {
+                let mut remaining_params = value_term.collect_forall_mut();
+                remaining_params.1.push((binding_identifier, binding_type));
+                remaining_params
+            }
+            _ => (self, vec![]),
+        }
+    }
+
     fn check_strict_positivity(self: &Self, identifier: &String) -> Result<(), KernelError> {
         // parse 'self' as ∀x:A.∀y:B.∀z:C. ... Z
         let (forall_result, forall_params) = self.collect_forall();
@@ -1199,6 +1237,101 @@ impl Term {
         }
     }
 
+    /// Build an expression of the form A B C D ...
+    /// from tuple (A, [B, C, D, ...])
+    fn build_application(input: (&Self, &[Self])) -> Self {
+        if input.1.len() >= 1 {
+            Self::Application {
+                function_term: Box::new(Self::build_application((
+                    input.0,
+                    &input.1[0..input.1.len() - 1],
+                ))),
+                parameter_term: Box::new(input.1[input.1.len() - 1].clone()),
+                debug_context: TermDebugContext::Ignore,
+            }
+        } else {
+            input.0.clone()
+        }
+    }
+
+    /// Build an expression of the form λx:A.λy:B.λz:C. ... Z
+    /// from tuple (Z, [..., (z, C), (y, B), (x, A)])
+    fn build_lambda(input: (&Self, &[(&String, &Self)])) -> Self {
+        if input.1.len() >= 1 {
+            Self::Lambda {
+                binding_identifier: input.1[input.1.len() - 1].0.clone(),
+                binding_type: Box::new(input.1[input.1.len() - 1].1.clone()),
+                value_term: Box::new(Self::build_lambda((
+                    input.0,
+                    &input.1[0..input.1.len() - 1],
+                ))),
+                debug_context: TermDebugContext::Ignore,
+            }
+        } else {
+            input.0.clone()
+        }
+    }
+
+    fn match_replace(
+        self: &mut Self,
+        identifier: &String,
+        parameter_term: &Self,
+        inductive_type: &Self,
+    ) {
+        let self_clone = self.clone();
+        let (_, original_forall_params) = self_clone.collect_forall();
+        let (forall_result, mut forall_params) = self.collect_forall_mut();
+        let param_count = forall_params.len();
+        assert!(param_count >= 1);
+        let arbitrary_term_identifier = forall_params[param_count - 1].0.clone();
+        let constructors = &mut forall_params[0..param_count - 1];
+        forall_result.replace(&arbitrary_term_identifier, parameter_term);
+        for n in 0..constructors.len() {
+            let constructor = &mut constructors[n].1;
+            let (constructor_result, constructor_params) = constructor.collect_forall_mut();
+            let contextual_params = constructor_params
+                .iter()
+                .map(|x| Self::Identifier(x.0.clone(), TermDebugContext::Ignore))
+                .rev()
+                .collect::<Vec<Self>>();
+            let contextual_result = Self::build_application((
+                &Self::Identifier(constructors[n].0.clone(), TermDebugContext::Ignore),
+                &contextual_params,
+            ));
+            let contextual_term = Self::build_lambda((
+                &contextual_result,
+                &original_forall_params[0..param_count - 1],
+            ));
+            let contextual_instance = Self::Lambda {
+                binding_identifier: arbitrary_term_identifier.clone(),
+                binding_type: Box::new(Self::Application {
+                    function_term: Box::new(Self::Identifier(
+                        "?".to_string(),
+                        TermDebugContext::Ignore,
+                    )),
+                    parameter_term: Box::new(inductive_type.clone()),
+                    debug_context: TermDebugContext::Ignore,
+                }),
+                value_term: Box::new(contextual_term),
+                debug_context: TermDebugContext::Ignore,
+            };
+            let mut modified_parameter_term = parameter_term.clone();
+            modified_parameter_term.replace(identifier, &contextual_instance);
+            constructor_result.replace(&arbitrary_term_identifier, &modified_parameter_term);
+        }
+        let mut output = &*self;
+        if let Self::Forall {
+            binding_identifier: _,
+            binding_type: _,
+            value_term,
+            debug_context: _,
+        } = &self
+        {
+            output = &**value_term;
+        }
+        *self = output.clone();
+    }
+
     fn infer_type_recursive(
         self: &Self,
         state: &State,
@@ -1241,7 +1374,8 @@ impl Term {
                 debug_context,
             } => {
                 let new_debug_context = TermDebugContext::TypeOf(Box::new(debug_context.clone()));
-                let mut function_type = function_term.infer_type_recursive(state, stack)?;
+                let original_function_type = function_term.infer_type_recursive(state, stack)?;
+                let mut function_type = original_function_type.clone();
                 if let Self::FixedPoint {
                     binding_identifier,
                     binding_type: _,
@@ -1253,6 +1387,7 @@ impl Term {
                     new_function_type.replace(&binding_identifier, &function_type);
                     function_type = new_function_type;
                 }
+                let mut function_type_clone = function_type.clone();
                 match function_type {
                     Self::Forall {
                         binding_identifier,
@@ -1265,25 +1400,35 @@ impl Term {
                         parameter_type.full_normalize(state);
                         let mut expected_parameter_type = binding_type.clone();
                         expected_parameter_type.full_normalize(state);
+                        let is_match_term = if let Self::Application {
+                            function_term: function_term2,
+                            parameter_term: _,
+                            debug_context: _,
+                        } = &*expected_parameter_type
+                        {
+                            **function_term2
+                                == Self::Identifier("?".to_string(), debug_context.clone())
+                        } else {
+                            false
+                        };
                         if parameter_type != *expected_parameter_type {
-                            let ignore = if let Self::Application {
-                                function_term: function_term2,
-                                parameter_term: _,
-                                debug_context: _,
-                            } = &*expected_parameter_type
-                            {
-                                **function_term2
-                                    == Self::Identifier("?".to_string(), debug_context.clone())
-                            } else {
-                                false
-                            };
-                            if !ignore {
+                            if !is_match_term {
                                 return Err(KernelError::NonmatchingArgument {
                                     expected_type: *expected_parameter_type,
                                     observed_type: parameter_type,
                                     function_context: function_term.get_debug_context().clone(),
                                     parameter_context: parameter_term.get_debug_context().clone(),
                                 });
+                            }
+                        }
+                        if is_match_term {
+                            if let Self::Identifier(s, _) = &**function_term {
+                                function_type_clone.match_replace(
+                                    s,
+                                    parameter_term,
+                                    &original_function_type,
+                                );
+                                return Ok(function_type_clone);
                             }
                         }
                         let mut output_type = value_term.with_new_debug_context(&new_debug_context);
