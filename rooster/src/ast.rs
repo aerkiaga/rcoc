@@ -23,6 +23,11 @@ pub enum Expression {
         value_expression: Box<Expression>,
         span: (usize, usize),
     },
+    FixedPoint {
+        binding: Binding,
+        value_expression: Box<Expression>,
+        span: (usize, usize),
+    },
 }
 
 impl Expression {
@@ -40,6 +45,11 @@ impl Expression {
                 span,
             } => *span,
             Self::Forall {
+                binding: _,
+                value_expression: _,
+                span,
+            } => *span,
+            Self::FixedPoint {
                 binding: _,
                 value_expression: _,
                 span,

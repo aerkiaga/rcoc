@@ -1,7 +1,8 @@
 # Rooster
-[![Kernel size](https://img.shields.io/badge/kernel-703%20SLOC-blue)](rooster_kernel/src/lib.rs)
+[![Kernel size](https://img.shields.io/badge/kernel-1368%20SLOC-blue)](rooster_kernel/src/lib.rs)
 
-An automated proof checker based on the Calculus of Constructions.
+An automated proof checker based on the Calculus of Constructions
+plus inductive types.
 
 Written in Rust, proofs also employ a Rust-like syntax.
 At the moment, it doesn't have many features, but it does work.
@@ -43,11 +44,22 @@ disjunction_of_implication_is_commutative = λA:Prop.λB:Prop.disjunction_is_com
     :∀A:Prop.∀B:Prop.(∀$465:Prop.((A→B)→$465)→((B→A)→$465)→$465)→∀$474:Prop.((B→A)→$474)→((A→B)→$474)→$474
 equivalence_implies_implication = λA:Prop.λB:Prop.conjunction_implies_operand A→B B→A
     :∀A:Prop.∀B:Prop.(∀$494:Prop.((A→B)→(B→A)→$494)→$494)→A→B
+nat = 𝐘self:Set.∀T:? Set.T→(self→T)→T
+    :Set
+O = λT:? nat.λa:T.λb:nat→T.a
+    :nat
+S = λx:nat.λT:? nat.λa:T.λb:nat→T.b x
+    :nat→nat
+add = 𝐘self:nat→nat→nat.λn:nat.λm:nat.n nat m λp:nat.S (self p m
+    :nat→nat→nat
+nat_inductive_hypothesis = 𝐘self:∀P:nat→Prop.P O→(∀n:nat.P n→P (S n)→∀n:nat.P n.λP:nat→Prop.λpO:P O.λh:∀n:nat.P n→P (S n.λn:nat.n (P n pO λp:nat.h p (self P pO h p
+    :∀P:nat→Prop.P O→(∀n:nat.P n→P (S n)→∀n:nat.P n
 ```
 
 ## Features
 Core language:
  - [x] Calculus of Constructions
+ - [x] Inductive types
 
 Syntax extensions:
  - [x] Intuitionistic logic
@@ -57,6 +69,7 @@ Syntax extensions:
 | CoC terms | `A(B)` `\|x: A\| B` `@(x: A) B` `Prop` `Type(n)` `{A}` |
 | CoC sentences | `let a: A = B;` |
 | Intuitionistic logic | `A -> B` `False` `^A` `A /\ B` `A \/ B` `exists(x: A) B` `A <-> B` |
+| Inductive types | `?` `recursive(x: A) B` `Set` |
 
 ## Acknowledgements
 

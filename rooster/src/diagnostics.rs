@@ -191,5 +191,29 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
                 .print((source_id, Source::from(code)))
                 .unwrap();
         }
+        KernelError::MisshapenInductiveDefinition {
+            unexpected_subterm,
+            subterm_context,
+            full_term_context,
+        } => {
+            println!("MisshapenInductiveDefinition");
+        }
+        KernelError::NegativeInductiveDefinition {
+            negative_subterm,
+            subterm_context,
+            full_term_context,
+        } => {
+            println!("NegativeInductiveDefinition");
+        }
+        KernelError::MisshapenRecursiveDefinition {
+            unexpected_subterm,
+            subterm_context,
+            full_term_context,
+        } => {
+            println!("MisshapenRecursiveDefinition");
+        }
+        KernelError::NonprimitiveRecursiveFunction { full_term_context } => {
+            println!("NonprimitiveRecursiveFunction");
+        }
     }
 }
