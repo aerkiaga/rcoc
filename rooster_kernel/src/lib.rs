@@ -1673,6 +1673,7 @@ impl std::fmt::Debug for Term {
                 f.write_str(" ")?;
                 let parenthesize_second = match **parameter_term {
                     Term::Application { .. } => true,
+                    Term::Lambda { .. } | Term::Forall { .. } => true,
                     _ => false,
                 };
                 if parenthesize_second {
