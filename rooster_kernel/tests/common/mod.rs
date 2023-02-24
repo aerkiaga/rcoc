@@ -16,30 +16,26 @@ fn parse_identifier(input: &[char]) -> (String, &[char]) {
 
 fn parse_application(input: &[char], previous_term: Term) -> (Term, &[char]) {
     if input.len() >= 1 && input[0] == ' ' {
-        let (next_term, rest_of_input) = parse_term(&input[1..]);
-        let mut function_term = previous_term;
-        let mut parameter_term = next_term.clone();
-        if let Term::Application {
-            function_term: inner_function_term,
-            parameter_term: inner_parameter_term,
-            debug_context: _,
-        } = next_term
-        {
-            function_term = Term::Application {
-                function_term: Box::new(function_term),
-                parameter_term: Box::new(*inner_function_term),
-                debug_context: TermDebugContext::Ignore,
-            };
-            parameter_term = *inner_parameter_term;
+        let (mut next_term, rest_of_input) = parse_term(&input[1..]);
+        let mut current_term = &mut next_term;
+        loop {
+            if let Term::Application {
+                function_term: inner_function_term,
+                parameter_term: _,
+                debug_context: _,
+            } = current_term
+            {
+                current_term = &mut *inner_function_term;
+            } else {
+                break;
+            }
         }
-        (
-            Term::Application {
-                function_term: Box::new(function_term),
-                parameter_term: Box::new(parameter_term),
-                debug_context: TermDebugContext::Ignore,
-            },
-            rest_of_input,
-        )
+        *current_term = Term::Application {
+            function_term: Box::new(previous_term),
+            parameter_term: Box::new(current_term.clone()),
+            debug_context: TermDebugContext::Ignore,
+        };
+        (next_term, rest_of_input)
     } else {
         (previous_term, input)
     }
@@ -81,7 +77,7 @@ fn parse_term(input: &[char]) -> (Term, &[char]) {
         '(' => {
             let (inner_term, input2) = parse_term(&input[1..]);
             assert!(input2[0] == ')');
-            let mut rest_of_input = &input2[1..];
+            let rest_of_input = &input2[1..];
             parse_application(rest_of_input, inner_term)
         }
         ch => {

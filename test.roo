@@ -102,5 +102,3 @@ let nat_induction: @(P: nat -> Prop)
     n(P(n), pO, |p: nat| h(p, self(P, pO, h, p)))
 ;
 
-let equals: @(a, b: nat) Prop = |a, b: nat| @(P: nat -> Prop) P(a) <-> P(b);
-

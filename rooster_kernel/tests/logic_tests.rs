@@ -40,8 +40,8 @@ fn conjunction_implies_operand() {
 fn disjunction_is_commutative() {
     common::execute(&[(
         "disjunction_is_commutative",
-        "∀A:Prop.∀B:Prop.∀_:∀P:Prop.∀_:∀_:A.P.∀_:∀_:B.P.P.∀S:Prop.∀_:∀_:B.S.∀_:∀_:A.S.S",
-        "λA:Prop.λB:Prop.λh:∀P:Prop.∀_:∀_:A.P.∀_:∀_:B.P.P.h ∀S:Prop.∀_:∀_:B.S.∀_:∀_:A.S.S λa:A.λQ:Prop.λ_:∀_:B.Q.λaq:∀_:A.Q.aq a λb:B.λQ:Prop.λbq:∀_:B.Q.λ_:∀_:A.Q.bq b",
+        "∀A:Prop.∀B:Prop.∀_:∀P:Prop.∀_:∀_:A.P.∀_:∀_:B.P.P.∀x:Prop.∀_:∀_:B.x.∀_:∀_:A.x.x",
+        "λA:Prop.λB:Prop.λh:∀P:Prop.∀_:∀_:A.P.∀_:∀_:B.P.P.h (∀x:Prop.∀_:∀_:B.x.∀_:∀_:A.x.x) (λa:A.λQ:Prop.λ_:∀_:B.Q.λaq:∀_:A.Q.aq a) (λb:B.λQ:Prop.λbq:∀_:B.Q.λ_:∀_:A.Q.bq b)",
     )]);
 }
 
@@ -59,7 +59,7 @@ fn disjunction_of_implication_is_commutative() {
     common::execute(&[(
         "disjunction_is_commutative",
         "∀A:Prop.∀B:Prop.∀_:∀P:Prop.∀_:∀_:A.P.∀_:∀_:B.P.P.∀S:Prop.∀_:∀_:B.S.∀_:∀_:A.S.S",
-        "λA:Prop.λB:Prop.λh:∀P:Prop.∀_:∀_:A.P.∀_:∀_:B.P.P.h ∀S:Prop.∀_:∀_:B.S.∀_:∀_:A.S.S λa:A.λQ:Prop.λ_:∀_:B.Q.λaq:∀_:A.Q.aq a λb:B.λQ:Prop.λbq:∀_:B.Q.λ_:∀_:A.Q.bq b",
+        "λA:Prop.λB:Prop.λh:∀P:Prop.∀_:∀_:A.P.∀_:∀_:B.P.P.h (∀x:Prop.∀_:∀_:B.x.∀_:∀_:A.x.x) (λa:A.λQ:Prop.λ_:∀_:B.Q.λaq:∀_:A.Q.aq a) (λb:B.λQ:Prop.λbq:∀_:B.Q.λ_:∀_:A.Q.bq b)",
     ), (
         "disjunction_of_implication_is_commutative",
         "∀A:Prop.∀B:Prop.∀_:(∀P:Prop.∀_:(∀_:(∀_:A.B).P).∀_:(∀_:(∀_:B.A).P).P).∀Q:Prop.∀_:(∀_:(∀_:B.A).Q).∀_:(∀_:(∀_:A.B).Q).Q",
@@ -69,13 +69,16 @@ fn disjunction_of_implication_is_commutative() {
 
 #[test]
 fn equivalence_implies_implication() {
-    common::execute(&[(
-        "conjunction_implies_operand",
-        "∀A:Prop.∀B:Prop.∀_:∀P:Prop.∀_:∀_:A.∀_:B.P.P.A",
-        "λA:Prop.λB:Prop.λh:∀P:Prop.∀_:∀_:A.∀_:B.P.P.h A λx:A.λy:B.x",
-    ), (
-        "equivalence_implies_implication",
-        "∀A:Prop.∀B:Prop.∀_:(∀P:Prop.∀_:(∀_:(∀_:A.B).∀_:(∀_:B.A).P).P).∀_:A.B",
-        "λA:Prop.λB:Prop.conjunction_implies_operand (∀_:A.B) (∀_:B.A)",
-    )]);
+    common::execute(&[
+        (
+            "conjunction_implies_operand",
+            "∀A:Prop.∀B:Prop.∀_:∀P:Prop.∀_:∀_:A.∀_:B.P.P.A",
+            "λA:Prop.λB:Prop.λh:∀P:Prop.∀_:∀_:A.∀_:B.P.P.h A λx:A.λy:B.x",
+        ),
+        (
+            "equivalence_implies_implication",
+            "∀A:Prop.∀B:Prop.∀_:(∀P:Prop.∀_:(∀_:(∀_:A.B).∀_:(∀_:B.A).P).P).∀_:A.B",
+            "λA:Prop.λB:Prop.conjunction_implies_operand (∀_:A.B) (∀_:B.A)",
+        ),
+    ]);
 }
