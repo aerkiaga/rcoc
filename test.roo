@@ -90,7 +90,7 @@ let add: nat -> nat -> nat = recursive(self: nat -> nat -> nat) |n, m: nat| n(
     nat, m, |p: nat| S(self(p, m))
 );
 
-let nat_inductive_hypothesis: @(P: nat -> Prop)
+let nat_induction: @(P: nat -> Prop)
     P(O) -> {@(n: nat) P(n) -> P(S(n))} -> @(n: nat) P(n)
 = recursive(self: @(P: nat -> Prop)
     P(O) -> {@(n: nat) P(n) -> P(S(n))} -> @(n: nat) P(n)
@@ -102,4 +102,5 @@ let nat_inductive_hypothesis: @(P: nat -> Prop)
     n(P(n), pO, |p: nat| h(p, self(P, pO, h, p)))
 ;
 
+let equals: @(a, b: nat) Prop = |a, b: nat| @(P: nat -> Prop) P(a) <-> P(b);
 
