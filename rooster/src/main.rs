@@ -1,4 +1,3 @@
-#![feature(new_uninit)]
 /// Abstract Syntax Tree data types and utilities
 mod ast;
 /// Error diagnostic generation code
