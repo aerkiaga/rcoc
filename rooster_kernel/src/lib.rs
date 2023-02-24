@@ -1679,7 +1679,7 @@ impl std::fmt::Debug for Term {
                     f.write_str("(")?;
                 }
                 parameter_term.fmt(f)?;
-                if parenthesize_first {
+                if parenthesize_second {
                     f.write_str(")")?;
                 }
             }

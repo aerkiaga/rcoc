@@ -50,10 +50,10 @@ O = λT:? nat.λa:T.λb:nat→T.a
     :nat
 S = λx:nat.λT:? nat.λa:T.λb:nat→T.b x
     :nat→nat
-add = 𝐘self:nat→nat→nat.λn:nat.λm:nat.n nat m λp:nat.S (self p m
+add = 𝐘self:nat→nat→nat.λn:nat.λm:nat.n nat m λp:nat.S (self p m)
     :nat→nat→nat
-nat_inductive_hypothesis = 𝐘self:∀P:nat→Prop.P O→(∀n:nat.P n→P (S n)→∀n:nat.P n.λP:nat→Prop.λpO:P O.λh:∀n:nat.P n→P (S n.λn:nat.n (P n pO λp:nat.h p (self P pO h p
-    :∀P:nat→Prop.P O→(∀n:nat.P n→P (S n)→∀n:nat.P n
+nat_inductive_hypothesis = 𝐘self:∀P:nat→Prop.P O→(∀n:nat.P n→P (S n))→∀n:nat.P n.λP:nat→Prop.λpO:P O.λh:∀n:nat.P n→P (S n).λn:nat.n (P n) pO λp:nat.h p (self P pO h p)
+    :∀P:nat→Prop.P O→(∀n:nat.P n→P (S n))→∀n:nat.P n
 ```
 
 ## Features
