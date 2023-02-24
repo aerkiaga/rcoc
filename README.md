@@ -1,7 +1,8 @@
 # Rooster
 [![Kernel size](https://img.shields.io/badge/kernel-1368%20SLOC-blue)](rooster_kernel/src/lib.rs)
 
-An automated proof checker based on the Calculus of Constructions.
+An automated proof checker based on the Calculus of Constructions
+plus inductive types.
 
 Written in Rust, proofs also employ a Rust-like syntax.
 At the moment, it doesn't have many features, but it does work.
@@ -58,7 +59,7 @@ nat_inductive_hypothesis = 𝐘self:∀P:nat→Prop.P O→(∀n:nat.P n→P (S n
 ## Features
 Core language:
  - [x] Calculus of Constructions
- - [ ] Inductive types (_WIP_)
+ - [x] Inductive types
 
 Syntax extensions:
  - [x] Intuitionistic logic

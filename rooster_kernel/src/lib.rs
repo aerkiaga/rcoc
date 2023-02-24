@@ -1,5 +1,6 @@
 //! This crate contains **Rooster**'s proof kernel code,
-//! an implementation of the [Calculus of Constructions](https://en.wikipedia.org/wiki/Calculus_of_constructions) (CoC).
+//! an implementation of the [Calculus of Constructions](https://en.wikipedia.org/wiki/Calculus_of_constructions) (CoC)
+//! with inductive types.
 //!
 //! CoC is a mathematical type theory and programming language
 //! developed by adding dependent types, polymorphism and
