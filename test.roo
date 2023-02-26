@@ -101,5 +101,3 @@ let nat_induction: @(P: nat -> Prop)
     |n: nat|
     n(P(n), pO, |p: nat| h(p, self(P, pO, h, p)))
 ;
-
-let test: Prop = @(x: Prop) {{{{{{{x->x}->x}->x}->x}->x}->x}->x};
