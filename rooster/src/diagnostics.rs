@@ -191,6 +191,34 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
                 .print((source_id, Source::from(code)))
                 .unwrap();
         }
+        KernelError::InvalidType {
+            incorrect_term,
+            incorrect_type,
+            incorrect_context,
+        } => {
+            Report::build(ReportKind::Error, source_id, 0)
+                .with_message(format!(
+                    "term's type must be {}, {} or {}",
+                    "Set".fg(Color::Green),
+                    "Prop".fg(Color::Green),
+                    "Type".fg(Color::Green),
+                ))
+                .with_note(format!(
+                    "the given term has type {}",
+                    format!("{:?}", incorrect_type).fg(Color::Red),
+                ))
+                .with_label(
+                    Label::new((
+                        source_id,
+                        (|t: (usize, usize)| t.0..t.1)(incorrect_context.get_span()),
+                    ))
+                    .with_message("invalid type")
+                    .with_color(color1),
+                )
+                .finish()
+                .print((source_id, Source::from(code)))
+                .unwrap();
+        }
         KernelError::MisshapenInductiveDefinition {
             unexpected_subterm,
             subterm_context,

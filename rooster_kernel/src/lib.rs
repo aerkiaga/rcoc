@@ -134,10 +134,13 @@
 //! with each free occurrence of 'x' within B taking type A.
 //!   - If A is of the form ? I, then the term follows the
 //!     rules for **inductive instances**.
+//!   - Otherwise, A's type must be _Set_, _Prop_ or _Type(1)_.
 //! * ∀x:A.B takes the type of B, with each free occurrence
 //! of 'x' within B taking type A.
 //!   - If A is of the form ? G, then the term follows the
 //!     rules for **inductive types**.
+//!   - Otherwise, A's type must be _Set_, _Prop_ or _Type(1)_,
+//!     and the output type must be _Set_, _Prop_ or _Type(1)_.
 //! * 𝐘x:A.B takes type A, provided that B is also of type A.
 //!   Additionally, either of the following rules must apply:
 //!   - B, and thus 𝐘x:A.B, fulfills the rules for **inductive types**.
@@ -395,6 +398,12 @@ pub enum KernelError {
         observed_type: Term,
         signature_context: TermDebugContext,
         definition_context: TermDebugContext,
+    },
+    /// A term which type should be Set, Prop or Type has a different type.
+    InvalidType {
+        incorrect_term: Term,
+        incorrect_type: Term,
+        incorrect_context: TermDebugContext,
     },
     // Either the type definition or one of its parameters don't evaluate
     // to a term of the form A1→A2→A3→...→B.
@@ -1462,7 +1471,22 @@ impl Term {
                         return Ok(*parameter_term.clone());
                     }
                 }
-                binding_type.infer_type_recursive(state, stack)?;
+                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                let valid = if let Self::Identifier(s, _) = &binding_type_type {
+                    match &**s {
+                        "Prop" | "Set" | "Type(1)" => true,
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+                if !valid {
+                    return Err(KernelError::InvalidType {
+                        incorrect_term: *binding_type.clone(),
+                        incorrect_type: binding_type_type.clone(),
+                        incorrect_context: binding_type.get_debug_context().clone(),
+                    });
+                }
                 stack.push((binding_identifier.clone(), *binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
@@ -1506,6 +1530,22 @@ impl Term {
                 let mut inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
                 binding_type.infer_type_recursive(state, stack)?;
+                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                let valid = if let Self::Identifier(s, _) = &binding_type_type {
+                    match &**s {
+                        "Prop" | "Set" | "Type(1)" => true,
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+                if !valid {
+                    return Err(KernelError::InvalidType {
+                        incorrect_term: *binding_type.clone(),
+                        incorrect_type: binding_type_type.clone(),
+                        incorrect_context: binding_type.get_debug_context().clone(),
+                    });
+                }
                 // replace after inferring inner type,
                 // so that the type of ∀x:P.Q
                 // is not just shown as the type of Q
@@ -1514,6 +1554,21 @@ impl Term {
                     inner_type = inner_type.with_new_debug_context(&TermDebugContext::TypeOf(
                         Box::new(debug_context.clone()),
                     ));
+                }
+                let valid = if let Self::Identifier(s, _) = &inner_type {
+                    match &**s {
+                        "Prop" | "Set" | "Type(1)" => true,
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+                if !valid {
+                    return Err(KernelError::InvalidType {
+                        incorrect_term: inner_type.clone(),
+                        incorrect_type: self.clone(),
+                        incorrect_context: self.get_debug_context().clone(),
+                    });
                 }
                 Ok(inner_type)
             }
