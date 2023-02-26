@@ -1529,7 +1529,6 @@ impl Term {
                 }
                 let mut inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
-                binding_type.infer_type_recursive(state, stack)?;
                 let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
                 let valid = if let Self::Identifier(s, _) = &binding_type_type {
                     match &**s {
