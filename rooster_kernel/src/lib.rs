@@ -1520,6 +1520,7 @@ impl Term {
                         // at strictly positive positions,
                         // and the entire term is of type Set.
                         value_term.check_strict_positivity(binding_identifier)?;
+                        value_term.infer_type_recursive(state, stack)?;
                         stack.pop();
                         return Ok(Self::Identifier(
                             "Set".to_string(),
@@ -1662,6 +1663,7 @@ impl Term {
                             } = &**current_term
                             {
                                 current_binding_type.check_strict_positivity(binding_identifier)?;
+                                current_binding_type.infer_type_recursive(state, stack)?;
                                 current_term = current_value_term;
                             } else {
                                 break;
