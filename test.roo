@@ -1,7 +1,7 @@
 /* This is an example file to test rcoc */
 
 // basic syntax
-let implication_is_reflexive:
+/*let implication_is_reflexive:
     @(T: Prop, x: T) T
 =
     |T: Prop, x: T| {|y: T| y}(x)
@@ -100,4 +100,8 @@ let nat_induction: @(P: nat -> Prop)
     |h: @(n: nat) P(n) -> P(S(n))|
     |n: nat|
     n(P(n), pO, |p: nat| h(p, self(P, pO, h, p)))
-;
+;*/
+
+let freeze: Prop = @(
+    x: recursive(y: ?(?)) y -> recursive(y: Set) |z: x| y
+) x(x(x));

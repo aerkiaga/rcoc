@@ -1503,6 +1503,22 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
+                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                let valid = if let Self::Identifier(s, _) = &binding_type_type {
+                    match &**s {
+                        "Prop" | "Set" | "Type(1)" => true,
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+                if !valid {
+                    return Err(KernelError::InvalidType {
+                        incorrect_term: *binding_type.clone(),
+                        incorrect_type: binding_type_type.clone(),
+                        incorrect_context: binding_type.get_debug_context().clone(),
+                    });
+                }
                 stack.push((binding_identifier.clone(), *binding_type.clone()));
                 if let Self::Application {
                     function_term,
@@ -1530,22 +1546,6 @@ impl Term {
                 }
                 let mut inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
-                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
-                let valid = if let Self::Identifier(s, _) = &binding_type_type {
-                    match &**s {
-                        "Prop" | "Set" | "Type(1)" => true,
-                        _ => false,
-                    }
-                } else {
-                    false
-                };
-                if !valid {
-                    return Err(KernelError::InvalidType {
-                        incorrect_term: *binding_type.clone(),
-                        incorrect_type: binding_type_type.clone(),
-                        incorrect_context: binding_type.get_debug_context().clone(),
-                    });
-                }
                 // replace after inferring inner type,
                 // so that the type of ∀x:P.Q
                 // is not just shown as the type of Q
