@@ -405,6 +405,8 @@ pub enum KernelError {
         incorrect_type: Term,
         incorrect_context: TermDebugContext,
     },
+    /// An inductive instance's type doesn't match its specified type.
+    InvalidInstance {},
     // Either the type definition or one of its parameters don't evaluate
     // to a term of the form A1→A2→A3→...→B.
     MisshapenInductiveDefinition {
@@ -1461,16 +1463,6 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
-                if let Self::Application {
-                    function_term,
-                    parameter_term,
-                    debug_context: _,
-                } = &**binding_type
-                {
-                    if **function_term == Self::Identifier("?".to_string(), debug_context.clone()) {
-                        return Ok(*parameter_term.clone());
-                    }
-                }
                 let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
                 let valid = if let Self::Identifier(s, _) = &binding_type_type {
                     match &**s {
@@ -1490,12 +1482,33 @@ impl Term {
                 stack.push((binding_identifier.clone(), *binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
-                Ok(Self::Forall {
+                let output_type = Self::Forall {
                     binding_identifier: binding_identifier.clone(),
                     binding_type: binding_type.clone(),
                     value_term: Box::new(inner_type),
                     debug_context: TermDebugContext::TypeOf(Box::new(debug_context.clone())),
-                })
+                };
+                if let Self::Application {
+                    function_term,
+                    parameter_term,
+                    debug_context: _,
+                } = &**binding_type
+                {
+                    if **function_term == Self::Identifier("?".to_string(), debug_context.clone()) {
+                        let mut reduced_parameter = parameter_term.clone();
+                        reduced_parameter.infer_type_recursive(state, stack)?;
+                        reduced_parameter.fixed_point_reduce(true);
+                        reduced_parameter.full_normalize(state);
+                        let mut normalized_self = self.clone();
+                        normalized_self.full_normalize(state);
+                        if normalized_self == *reduced_parameter {
+                            return Ok(*parameter_term.clone());
+                        } else {
+                            return Err(KernelError::InvalidInstance {});
+                        }
+                    }
+                }
+                Ok(output_type)
             }
             Self::Forall {
                 binding_identifier,
@@ -1503,6 +1516,22 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
+                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                let valid = if let Self::Identifier(s, _) = &binding_type_type {
+                    match &**s {
+                        "Prop" | "Set" | "Type(1)" => true,
+                        _ => false,
+                    }
+                } else {
+                    false
+                };
+                if !valid {
+                    return Err(KernelError::InvalidType {
+                        incorrect_term: *binding_type.clone(),
+                        incorrect_type: binding_type_type.clone(),
+                        incorrect_context: binding_type.get_debug_context().clone(),
+                    });
+                }
                 stack.push((binding_identifier.clone(), *binding_type.clone()));
                 if let Self::Application {
                     function_term,
@@ -1530,22 +1559,6 @@ impl Term {
                 }
                 let mut inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
-                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
-                let valid = if let Self::Identifier(s, _) = &binding_type_type {
-                    match &**s {
-                        "Prop" | "Set" | "Type(1)" => true,
-                        _ => false,
-                    }
-                } else {
-                    false
-                };
-                if !valid {
-                    return Err(KernelError::InvalidType {
-                        incorrect_term: *binding_type.clone(),
-                        incorrect_type: binding_type_type.clone(),
-                        incorrect_context: binding_type.get_debug_context().clone(),
-                    });
-                }
                 // replace after inferring inner type,
                 // so that the type of ∀x:P.Q
                 // is not just shown as the type of Q
@@ -1619,6 +1632,9 @@ impl Term {
                         let mut valid = false;
                         for n in 0..parameter_list.len() {
                             let parameter_type = &parameter_list[n].1;
+                            if parameter_type.contains(binding_identifier) {
+                                break;
+                            }
                             let parameter_type_type =
                                 parameter_type.infer_type_recursive(state, stack)?;
                             if let Self::Identifier(s, _) = parameter_type_type {
