@@ -1632,6 +1632,9 @@ impl Term {
                         let mut valid = false;
                         for n in 0..parameter_list.len() {
                             let parameter_type = &parameter_list[n].1;
+                            if parameter_type.contains(binding_identifier) {
+                                break;
+                            }
                             let parameter_type_type =
                                 parameter_type.infer_type_recursive(state, stack)?;
                             if let Self::Identifier(s, _) = parameter_type_type {
