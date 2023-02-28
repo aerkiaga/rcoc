@@ -1187,6 +1187,9 @@ impl Term {
             } => {
                 // parse 'self' as A B C D ...
                 let (application_function, application_params) = self.collect_application();
+                if !application_function.check_strictly_decreasing(index, parameter, recursive) {
+                    return false;
+                }
                 let match_entered = application_function
                     == &Self::Identifier(parameter.clone(), TermDebugContext::Ignore);
                 for application_param in application_params {
@@ -1593,7 +1596,7 @@ impl Term {
             } => {
                 binding_type.infer_type_recursive(state, stack)?;
                 let mut normalized_binding_type = binding_type.clone();
-                // TODO: see above
+                // TODO: possible edge case if state variables are actually captured in the stack
                 normalized_binding_type.full_normalize(state);
                 stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
@@ -1732,7 +1735,7 @@ impl std::fmt::Debug for Term {
                 debug_context: _,
             } => {
                 let parenthesize_first = match **function_term {
-                    Term::Lambda { .. } | Term::Forall { .. } => true,
+                    Term::Lambda { .. } | Term::Forall { .. } | Term::FixedPoint { .. } => true,
                     _ => false,
                 };
                 if parenthesize_first {
@@ -1745,7 +1748,7 @@ impl std::fmt::Debug for Term {
                 f.write_str(" ")?;
                 let parenthesize_second = match **parameter_term {
                     Term::Application { .. } => true,
-                    Term::Lambda { .. } | Term::Forall { .. } => true,
+                    Term::Lambda { .. } | Term::Forall { .. } | Term::FixedPoint { .. } => true,
                     _ => false,
                 };
                 if parenthesize_second {
