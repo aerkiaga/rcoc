@@ -122,7 +122,7 @@
 //! * Variables defined outside the term (in its containing
 //! _state_) take the type they were defined with.
 //! * _Set_ and _Prop_ have type _Type(1)_.
-//! * ? has type ?.
+//! * ? M has type ? M, for any term M.
 //! * A B uses the following rules:
 //!   - If A has type 𝐘x:S.W, its type is fixed point reduced
 //!     once and then normalized.
@@ -134,13 +134,13 @@
 //! with each free occurrence of 'x' within B taking type A.
 //!   - If A is of the form ? I, then the term follows the
 //!     rules for **inductive instances**.
-//!   - Otherwise, A's type must be _Set_, _Prop_ or _Type(1)_.
+//!   - Otherwise, A's type must be _Set_, _Prop_, _Type(1)_ or ? M.
 //! * ∀x:A.B takes the type of B, with each free occurrence
 //! of 'x' within B taking type A.
 //!   - If A is of the form ? G, then the term follows the
 //!     rules for **inductive types**.
-//!   - Otherwise, A's type must be _Set_, _Prop_ or _Type(1)_,
-//!     and the output type must be _Set_, _Prop_ or _Type(1)_.
+//!   - Otherwise, A's type must be _Set_, _Prop_, _Type(1)_ or ? M,
+//!     and the output type must be _Set_, _Prop_, _Type(1)_ or ? M.
 //! * 𝐘x:A.B takes type A, provided that B is also of type A.
 //!   Additionally, either of the following rules must apply:
 //!   - B, and thus 𝐘x:A.B, fulfills the rules for **inductive types**.
@@ -301,7 +301,12 @@ impl PartialEq for Term {
                     debug_context: _,
                 } = other
                 {
-                    function_term == function_term2 && parameter_term == parameter_term2
+                    function_term == function_term2
+                        && ((if let Self::Identifier(s, _) = &**function_term {
+                            s == "?"
+                        } else {
+                            false
+                        }) || parameter_term == parameter_term2)
                 } else {
                     false
                 }
@@ -1408,7 +1413,7 @@ impl Term {
                         binding_identifier,
                         binding_type,
                         value_term,
-                        debug_context,
+                        debug_context: _,
                     } => {
                         let mut parameter_type =
                             parameter_term.infer_type_recursive(state, stack)?;
@@ -1453,11 +1458,22 @@ impl Term {
                         output_type.replace(&binding_identifier, parameter_term);
                         Ok(output_type)
                     }
-                    _ => Err(KernelError::InvalidApplication {
-                        nonfunction_type: function_type,
-                        nonfunction_context: function_term.get_debug_context().clone(),
-                        parameter_context: parameter_term.get_debug_context().clone(),
-                    }),
+                    _ => {
+                        if let Self::Identifier(s, _) = &function_type {
+                            if s == "?" {
+                                return Ok(Self::Application {
+                                    function_term: function_term.clone(),
+                                    parameter_term: parameter_term.clone(),
+                                    debug_context: debug_context.clone(),
+                                });
+                            }
+                        }
+                        Err(KernelError::InvalidApplication {
+                            nonfunction_type: function_type,
+                            nonfunction_context: function_term.get_debug_context().clone(),
+                            parameter_context: parameter_term.get_debug_context().clone(),
+                        })
+                    }
                 }
             }
             Self::Lambda {
@@ -1472,6 +1488,13 @@ impl Term {
                         "Prop" | "Set" | "Type(1)" => true,
                         _ => false,
                     }
+                } else if let Self::Application {
+                    function_term,
+                    parameter_term: _,
+                    debug_context: _,
+                } = &binding_type_type
+                {
+                    **function_term == Self::Identifier("?".to_string(), TermDebugContext::Ignore)
                 } else {
                     false
                 };
@@ -1500,11 +1523,12 @@ impl Term {
                     if **function_term == Self::Identifier("?".to_string(), debug_context.clone()) {
                         let mut reduced_parameter = parameter_term.clone();
                         reduced_parameter.infer_type_recursive(state, stack)?;
+                        reduced_parameter.full_normalize(state);
                         reduced_parameter.fixed_point_reduce(true);
                         reduced_parameter.full_normalize(state);
-                        let mut normalized_self = self.clone();
-                        normalized_self.full_normalize(state);
-                        if normalized_self == *reduced_parameter {
+                        let mut self_type = output_type.clone();
+                        self_type.full_normalize(state);
+                        if self_type == *reduced_parameter {
                             return Ok(*parameter_term.clone());
                         } else {
                             return Err(KernelError::InvalidInstance {});
@@ -1525,6 +1549,13 @@ impl Term {
                         "Prop" | "Set" | "Type(1)" => true,
                         _ => false,
                     }
+                } else if let Self::Application {
+                    function_term,
+                    parameter_term: _,
+                    debug_context: _,
+                } = &binding_type_type
+                {
+                    **function_term == Self::Identifier("?".to_string(), TermDebugContext::Ignore)
                 } else {
                     false
                 };
@@ -1576,14 +1607,21 @@ impl Term {
                         "Prop" | "Set" | "Type(1)" => true,
                         _ => false,
                     }
+                } else if let Self::Application {
+                    function_term,
+                    parameter_term: _,
+                    debug_context: _,
+                } = &inner_type
+                {
+                    **function_term == Self::Identifier("?".to_string(), TermDebugContext::Ignore)
                 } else {
                     false
                 };
                 if !valid {
                     return Err(KernelError::InvalidType {
-                        incorrect_term: inner_type.clone(),
-                        incorrect_type: self.clone(),
-                        incorrect_context: self.get_debug_context().clone(),
+                        incorrect_term: *value_term.clone(),
+                        incorrect_type: inner_type.clone(),
+                        incorrect_context: value_term.get_debug_context().clone(),
                     });
                 }
                 Ok(inner_type)
@@ -1682,7 +1720,6 @@ impl Term {
                             } = &**current_term
                             {
                                 current_binding_type.check_strict_positivity(binding_identifier)?;
-                                current_binding_type.infer_type_recursive(state, stack)?;
                                 current_term = current_value_term;
                             } else {
                                 break;
