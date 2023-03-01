@@ -49,8 +49,8 @@ fn disjunction_is_commutative() {
 fn proposition_and_its_negation_is_false() {
     common::execute(&[(
         "proposition_and_its_negation_is_false",
-        "∀A:Prop.∀_:(∀Q:Prop.∀_:(∀_:A.∀_:(∀_:A.∀x:Prop.x).Q).Q).∀x:Prop.x",
-        "λA:Prop.λh:∀Q:Prop.∀_:(∀_:A.∀_:(∀_:A.∀x:Prop.x).Q).Q.h (∀x:Prop.x) λa:A.λnot_a:∀_:A.∀x:Prop.x.not_a a",
+        "∀A:Prop.∀_:∀Q:Prop.∀_:∀_:A.∀_:∀_:A.∀x:Prop.x.Q.Q.∀x:Prop.x",
+        "λA:Prop.λh:∀Q:Prop.∀_:∀_:A.∀_:∀_:A.∀x:Prop.x.Q.Q.h (∀x:Prop.x) λa:A.λnot_a:∀_:A.∀x:Prop.x.not_a a",
     )]);
 }
 
@@ -62,7 +62,7 @@ fn disjunction_of_implication_is_commutative() {
         "λA:Prop.λB:Prop.λh:∀P:Prop.∀_:∀_:A.P.∀_:∀_:B.P.P.h (∀x:Prop.∀_:∀_:B.x.∀_:∀_:A.x.x) (λa:A.λQ:Prop.λ_:∀_:B.Q.λaq:∀_:A.Q.aq a) (λb:B.λQ:Prop.λbq:∀_:B.Q.λ_:∀_:A.Q.bq b)",
     ), (
         "disjunction_of_implication_is_commutative",
-        "∀A:Prop.∀B:Prop.∀_:(∀P:Prop.∀_:(∀_:(∀_:A.B).P).∀_:(∀_:(∀_:B.A).P).P).∀Q:Prop.∀_:(∀_:(∀_:B.A).Q).∀_:(∀_:(∀_:A.B).Q).Q",
+        "∀A:Prop.∀B:Prop.∀_:∀P:Prop.∀_:∀_:∀_:A.B.P.∀_:∀_:∀_:B.A.P.P.∀Q:Prop.∀_:∀_:∀_:B.A.Q.∀_:∀_:∀_:A.B.Q.Q",
         "λA:Prop.λB:Prop.disjunction_is_commutative (∀_:A.B) (∀_:B.A)",
     )]);
 }
@@ -77,7 +77,7 @@ fn equivalence_implies_implication() {
         ),
         (
             "equivalence_implies_implication",
-            "∀A:Prop.∀B:Prop.∀_:(∀P:Prop.∀_:(∀_:(∀_:A.B).∀_:(∀_:B.A).P).P).∀_:A.B",
+            "∀A:Prop.∀B:Prop.∀_:∀P:Prop.∀_:∀_:∀_:A.B.∀_:∀_:B.A.P.P.∀_:A.B",
             "λA:Prop.λB:Prop.conjunction_implies_operand (∀_:A.B) (∀_:B.A)",
         ),
     ]);

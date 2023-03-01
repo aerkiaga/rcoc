@@ -122,7 +122,7 @@
 //! * Variables defined outside the term (in its containing
 //! _state_) take the type they were defined with.
 //! * _Set_ and _Prop_ have type _Type(1)_.
-//! * ? has type ?.
+//! * ? M has type ? M, for any term M.
 //! * A B uses the following rules:
 //!   - If A has type 𝐘x:S.W, its type is fixed point reduced
 //!     once and then normalized.
@@ -134,13 +134,13 @@
 //! with each free occurrence of 'x' within B taking type A.
 //!   - If A is of the form ? I, then the term follows the
 //!     rules for **inductive instances**.
-//!   - Otherwise, A's type must be _Set_, _Prop_ or _Type(1)_.
+//!   - Otherwise, A's type must be _Set_, _Prop_, _Type(1)_ or ? M.
 //! * ∀x:A.B takes the type of B, with each free occurrence
 //! of 'x' within B taking type A.
 //!   - If A is of the form ? G, then the term follows the
 //!     rules for **inductive types**.
-//!   - Otherwise, A's type must be _Set_, _Prop_ or _Type(1)_,
-//!     and the output type must be _Set_, _Prop_ or _Type(1)_.
+//!   - Otherwise, A's type must be _Set_, _Prop_, _Type(1)_ or ? M,
+//!     and the output type must be _Set_, _Prop_, _Type(1)_ or ? M.
 //! * 𝐘x:A.B takes type A, provided that B is also of type A.
 //!   Additionally, either of the following rules must apply:
 //!   - B, and thus 𝐘x:A.B, fulfills the rules for **inductive types**.
@@ -216,7 +216,7 @@
 /// should not affect proof checking, so this code is
 /// outside the trusted base.
 ///
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum TermDebugContext {
     /// No information, don't propagate.
     Ignore,
@@ -301,7 +301,12 @@ impl PartialEq for Term {
                     debug_context: _,
                 } = other
                 {
-                    function_term == function_term2 && parameter_term == parameter_term2
+                    function_term == function_term2
+                        && ((if let Self::Identifier(s, _) = &**function_term {
+                            s == "?"
+                        } else {
+                            false
+                        }) || parameter_term == parameter_term2)
                 } else {
                     false
                 }
@@ -373,6 +378,7 @@ impl PartialEq for Term {
 impl Eq for Term {}
 
 /// A type representing an error encountered by the kernel while executing some input.
+#[derive(Debug)]
 pub enum KernelError {
     /// A term contains some identifier that hasn't been defined before.
     UndefinedIdentifier {
@@ -1293,32 +1299,104 @@ impl Term {
         parameter_term: &Self,
         inductive_type: &Self,
     ) {
-        let self_clone = self.clone();
-        let (_, original_forall_params) = self_clone.collect_forall();
-        let (forall_result, mut forall_params) = self.collect_forall_mut();
-        let param_count = forall_params.len();
-        assert!(param_count >= 1);
-        let arbitrary_term_identifier = forall_params[param_count - 1].0.clone();
-        let constructors = &mut forall_params[0..param_count - 1];
-        forall_result.replace(&arbitrary_term_identifier, parameter_term);
-        for n in 0..constructors.len() {
-            let constructor = &mut constructors[n].1;
-            let (constructor_result, constructor_params) = constructor.collect_forall_mut();
-            let contextual_params = constructor_params
+        // create a template for new instances
+        let mut instance_template = self.clone();
+        let (template_result, mut template_params) = instance_template.collect_forall_mut();
+        let constructor_count = template_params.len() - 1;
+        let arbitrary_identifier = template_params[constructor_count].0.clone();
+        let template_constructors = &mut template_params[..constructor_count];
+        // rename parameters to avoid name collisions
+        for n in 0..constructor_count {
+            let mut suffix: u64 = 0;
+            let mut new_identifier;
+            'rep: loop {
+                new_identifier = format!("{}{}", template_constructors[n].0, suffix);
+                for m in 0..n {
+                    if &new_identifier == template_constructors[m].0
+                        || template_constructors[m].1.contains(&new_identifier)
+                    {
+                        suffix += 1;
+                        continue 'rep;
+                    }
+                }
+                if template_result.contains(&new_identifier) {
+                    suffix += 1;
+                    continue 'rep;
+                }
+                break;
+            }
+            for m in 0..n {
+                template_constructors[m].1.replace(
+                    template_constructors[n].0,
+                    &Self::Identifier(new_identifier.clone(), TermDebugContext::Ignore),
+                );
+            }
+            template_result.replace(
+                template_constructors[n].0,
+                &Self::Identifier(new_identifier.clone(), TermDebugContext::Ignore),
+            );
+            *template_constructors[n].0 = new_identifier;
+        }
+        // now generate a list of instances with variables bound to the template constructor
+        let mut instances = vec![];
+        for n in 0..constructor_count {
+            let template_constructor = &mut template_constructors[n].1;
+            let (template_constructor_result, mut template_constructor_params) =
+                template_constructor.collect_forall_mut();
+            // again, rename parameters to avoid name collisions
+            for c in 0..template_constructor_params.len() {
+                let mut suffix: u64 = 0;
+                let mut new_identifier;
+                'rep: loop {
+                    new_identifier = format!("{}{}", template_constructor_params[c].0, suffix);
+                    for m in 0..c {
+                        if &new_identifier == template_constructor_params[m].0
+                            || template_constructor_params[m].1.contains(&new_identifier)
+                        {
+                            suffix += 1;
+                            continue 'rep;
+                        }
+                    }
+                    for m in 0..constructor_count {
+                        if &new_identifier == template_constructors[m].0 {
+                            suffix += 1;
+                            continue 'rep;
+                        }
+                    }
+                    if template_constructor_result.contains(&new_identifier) {
+                        suffix += 1;
+                        continue 'rep;
+                    }
+                    break;
+                }
+                let old_identifier = template_constructor_params[n].0.clone();
+                for m in 0..n {
+                    template_constructor_params[m].1.replace(
+                        &old_identifier,
+                        &Self::Identifier(new_identifier.clone(), TermDebugContext::Ignore),
+                    );
+                }
+                template_constructor_result.replace(
+                    template_constructor_params[n].0,
+                    &Self::Identifier(new_identifier.clone(), TermDebugContext::Ignore),
+                );
+                *template_constructor_params[n].0 = new_identifier;
+            }
+            // build up inductive instance
+            let application = Self::build_application((
+                &Self::Identifier(template_constructors[n].0.clone(), TermDebugContext::Ignore),
+                &template_constructor_params
+                    .iter()
+                    .map(|x| Self::Identifier(x.0.clone(), TermDebugContext::Ignore))
+                    .rev()
+                    .collect::<Vec<_>>(),
+            ));
+            let tmp = template_constructors
                 .iter()
-                .map(|x| Self::Identifier(x.0.clone(), TermDebugContext::Ignore))
-                .rev()
-                .collect::<Vec<Self>>();
-            let contextual_result = Self::build_application((
-                &Self::Identifier(constructors[n].0.clone(), TermDebugContext::Ignore),
-                &contextual_params,
-            ));
-            let contextual_term = Self::build_lambda((
-                &contextual_result,
-                &original_forall_params[0..param_count - 1],
-            ));
-            let contextual_instance = Self::Lambda {
-                binding_identifier: arbitrary_term_identifier.clone(),
+                .map(|x| (&*x.0, &*x.1))
+                .collect::<Vec<(&String, &Term)>>();
+            let instance = Self::Lambda {
+                binding_identifier: arbitrary_identifier.clone(),
                 binding_type: Box::new(Self::Application {
                     function_term: Box::new(Self::Identifier(
                         "?".to_string(),
@@ -1327,24 +1405,34 @@ impl Term {
                     parameter_term: Box::new(inductive_type.clone()),
                     debug_context: TermDebugContext::Ignore,
                 }),
-                value_term: Box::new(contextual_term),
+                value_term: Box::new(Self::build_lambda((&application, &*tmp))),
                 debug_context: TermDebugContext::Ignore,
             };
-            let mut modified_parameter_term = parameter_term.clone();
-            modified_parameter_term.replace(identifier, &contextual_instance);
-            constructor_result.replace(&arbitrary_term_identifier, &modified_parameter_term);
+            instances.push(instance);
         }
-        let mut output = &*self;
+        // then operate on the actual constructors
+        let (self_result, mut self_params) = self.collect_forall_mut();
+        let constructors = &mut self_params[..constructor_count];
+        for n in 0..constructor_count {
+            let mut replaced_parameter = parameter_term.clone();
+            replaced_parameter.replace(identifier, &instances[n]);
+            let mut modified_constructor = template_constructors[n].1.clone();
+            let (result, _) = modified_constructor.collect_forall_mut();
+            result.replace(&arbitrary_identifier, &replaced_parameter);
+            *constructors[n].1 = modified_constructor;
+        }
+        // handle the result
+        *self_result = parameter_term.clone();
+
         if let Self::Forall {
             binding_identifier: _,
             binding_type: _,
             value_term,
             debug_context: _,
-        } = &self
+        } = self
         {
-            output = &**value_term;
+            *self = *value_term.clone();
         }
-        *self = output.clone();
     }
 
     fn infer_type_recursive(
@@ -1408,7 +1496,7 @@ impl Term {
                         binding_identifier,
                         binding_type,
                         value_term,
-                        debug_context,
+                        debug_context: _,
                     } => {
                         let mut parameter_type =
                             parameter_term.infer_type_recursive(state, stack)?;
@@ -1453,11 +1541,22 @@ impl Term {
                         output_type.replace(&binding_identifier, parameter_term);
                         Ok(output_type)
                     }
-                    _ => Err(KernelError::InvalidApplication {
-                        nonfunction_type: function_type,
-                        nonfunction_context: function_term.get_debug_context().clone(),
-                        parameter_context: parameter_term.get_debug_context().clone(),
-                    }),
+                    _ => {
+                        if let Self::Identifier(s, _) = &function_type {
+                            if s == "?" {
+                                return Ok(Self::Application {
+                                    function_term: function_term.clone(),
+                                    parameter_term: parameter_term.clone(),
+                                    debug_context: debug_context.clone(),
+                                });
+                            }
+                        }
+                        Err(KernelError::InvalidApplication {
+                            nonfunction_type: function_type,
+                            nonfunction_context: function_term.get_debug_context().clone(),
+                            parameter_context: parameter_term.get_debug_context().clone(),
+                        })
+                    }
                 }
             }
             Self::Lambda {
@@ -1472,6 +1571,13 @@ impl Term {
                         "Prop" | "Set" | "Type(1)" => true,
                         _ => false,
                     }
+                } else if let Self::Application {
+                    function_term,
+                    parameter_term: _,
+                    debug_context: _,
+                } = &binding_type_type
+                {
+                    **function_term == Self::Identifier("?".to_string(), TermDebugContext::Ignore)
                 } else {
                     false
                 };
@@ -1500,11 +1606,12 @@ impl Term {
                     if **function_term == Self::Identifier("?".to_string(), debug_context.clone()) {
                         let mut reduced_parameter = parameter_term.clone();
                         reduced_parameter.infer_type_recursive(state, stack)?;
+                        reduced_parameter.full_normalize(state);
                         reduced_parameter.fixed_point_reduce(true);
                         reduced_parameter.full_normalize(state);
-                        let mut normalized_self = self.clone();
-                        normalized_self.full_normalize(state);
-                        if normalized_self == *reduced_parameter {
+                        let mut self_type = output_type.clone();
+                        self_type.full_normalize(state);
+                        if self_type == *reduced_parameter {
                             return Ok(*parameter_term.clone());
                         } else {
                             return Err(KernelError::InvalidInstance {});
@@ -1525,6 +1632,13 @@ impl Term {
                         "Prop" | "Set" | "Type(1)" => true,
                         _ => false,
                     }
+                } else if let Self::Application {
+                    function_term,
+                    parameter_term: _,
+                    debug_context: _,
+                } = &binding_type_type
+                {
+                    **function_term == Self::Identifier("?".to_string(), TermDebugContext::Ignore)
                 } else {
                     false
                 };
@@ -1576,14 +1690,21 @@ impl Term {
                         "Prop" | "Set" | "Type(1)" => true,
                         _ => false,
                     }
+                } else if let Self::Application {
+                    function_term,
+                    parameter_term: _,
+                    debug_context: _,
+                } = &inner_type
+                {
+                    **function_term == Self::Identifier("?".to_string(), TermDebugContext::Ignore)
                 } else {
                     false
                 };
                 if !valid {
                     return Err(KernelError::InvalidType {
-                        incorrect_term: inner_type.clone(),
-                        incorrect_type: self.clone(),
-                        incorrect_context: self.get_debug_context().clone(),
+                        incorrect_term: *value_term.clone(),
+                        incorrect_type: inner_type.clone(),
+                        incorrect_context: value_term.get_debug_context().clone(),
                     });
                 }
                 Ok(inner_type)
@@ -1682,7 +1803,6 @@ impl Term {
                             } = &**current_term
                             {
                                 current_binding_type.check_strict_positivity(binding_identifier)?;
-                                current_binding_type.infer_type_recursive(state, stack)?;
                                 current_term = current_value_term;
                             } else {
                                 break;

@@ -1,5 +1,5 @@
 # Rooster
-[![Kernel size](https://img.shields.io/badge/kernel-1439%20SLOC-blue)](rooster_kernel/src/lib.rs) [![Rust CI workflow](https://github.com/aerkiaga/rooster/actions/workflows/rust.yml/badge.svg)](.github/workflows/rust.yml)
+[![Kernel size](https://img.shields.io/badge/kernel-1551%20SLOC-blue)](rooster_kernel/src/lib.rs) [![Rust CI workflow](https://github.com/aerkiaga/rooster/actions/workflows/rust.yml/badge.svg)](.github/workflows/rust.yml)
 
 An automated proof checker based on the Calculus of Constructions
 plus inductive types.
