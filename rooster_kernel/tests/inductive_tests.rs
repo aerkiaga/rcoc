@@ -1,12 +1,12 @@
 mod common;
 
 #[test]
-fn define_nat() {
+fn nat() {
     common::execute(&[("nat", "Set", "𝐘self:Set.∀T:? Set.∀_:T.∀_:∀_:self.T.T")]);
 }
 
 #[test]
-fn define_nat_constructors() {
+fn nat_constructors() {
     common::execute(&[
         ("nat", "Set", "𝐘self:Set.∀T:? Set.∀_:T.∀_:∀_:self.T.T"),
         ("O", "nat", "λT:? nat.λa:T.λb:∀_:nat.T.a"),
@@ -15,7 +15,7 @@ fn define_nat_constructors() {
 }
 
 #[test]
-fn define_add() {
+fn add() {
     common::execute(&[
         ("nat", "Set", "𝐘self:Set.∀T:? Set.∀_:T.∀_:∀_:self.T.T"),
         ("O", "nat", "λT:? nat.λa:T.λb:∀_:nat.T.a"),
@@ -29,7 +29,7 @@ fn define_add() {
 }
 
 #[test]
-fn inductive_axiom() {
+fn nat_induction() {
     common::execute(&[
         ("nat", "Set", "𝐘self:Set.∀T:? Set.∀_:T.∀_:∀_:self.T.T"),
         ("O", "nat", "λT:? nat.λa:T.λb:∀_:nat.T.a"),

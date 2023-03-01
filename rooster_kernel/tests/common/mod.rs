@@ -106,7 +106,7 @@ pub fn execute(code: &[(&str, &str, &str)]) {
             parse_term(&statement.2.chars().collect::<Vec<_>>(), true).0,
         ) {
             Ok(_) => (),
-            Err(_) => panic!(),
+            Err(e) => panic!("{:?}", e),
         }
     }
 }
