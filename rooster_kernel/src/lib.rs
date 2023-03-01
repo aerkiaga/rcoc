@@ -411,6 +411,8 @@ pub enum KernelError {
         incorrect_type: Term,
         incorrect_context: TermDebugContext,
     },
+    /// A term which type should be Set has a different type.
+    InvalidTypeSet {},
     /// An inductive instance's type doesn't match its specified type.
     InvalidInstance {},
     // Either the type definition or one of its parameters don't evaluate
@@ -1658,9 +1660,12 @@ impl Term {
                 {
                     if **function_term
                         == Self::Identifier("?".to_string(), TermDebugContext::Ignore)
-                        && **parameter_term
-                            == Self::Identifier("Set".to_string(), TermDebugContext::Ignore)
                     {
+                        if **parameter_term
+                            != Self::Identifier("Set".to_string(), TermDebugContext::Ignore)
+                        {
+                            return Err(KernelError::InvalidTypeSet {});
+                        }
                         // ∀x:? Set.M is a special case.
                         // M is required to contain x only
                         // at strictly positive positions,
@@ -1915,6 +1920,8 @@ impl std::fmt::Debug for Term {
                     value_term.fmt(f)?;
                 } else if if let Term::Identifier(s, _) = &**value_term {
                     s == binding_identifier
+                        && **binding_type
+                            == Term::Identifier("Prop".to_string(), TermDebugContext::Ignore)
                 } else {
                     false
                 } {
