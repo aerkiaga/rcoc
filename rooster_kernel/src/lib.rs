@@ -296,12 +296,7 @@ impl PartialEq for Term {
                     debug_context: _,
                 } = other
                 {
-                    function_term == function_term2
-                        && ((if let Self::Identifier(s, _) = &**function_term {
-                            s == "?"
-                        } else {
-                            false
-                        }) || parameter_term == parameter_term2)
+                    function_term == function_term2 && parameter_term == parameter_term2
                 } else {
                     false
                 }
@@ -1649,7 +1644,7 @@ impl Term {
                                     debug_context: _,
                                 } = &inductive_type
                                 {
-                                    if let Self::Identifier(s, _) = &**binding_type2 {
+                                    if let Self::Identifier(_, _) = &**binding_type2 {
                                         function_term2_type = *value_term2.clone();
                                     }
                                 }
@@ -1721,22 +1716,11 @@ impl Term {
                         output_type.replace(&binding_identifier, parameter_term);
                         Ok(output_type)
                     }
-                    _ => {
-                        if let Self::Identifier(s, _) = &function_type {
-                            if s == "?" {
-                                return Ok(Self::Application {
-                                    function_term: function_term.clone(),
-                                    parameter_term: parameter_term.clone(),
-                                    debug_context: debug_context.clone(),
-                                });
-                            }
-                        }
-                        Err(KernelError::InvalidApplication {
-                            nonfunction_type: function_type,
-                            nonfunction_context: function_term.get_debug_context().clone(),
-                            parameter_context: parameter_term.get_debug_context().clone(),
-                        })
-                    }
+                    _ => Err(KernelError::InvalidApplication {
+                        nonfunction_type: function_type,
+                        nonfunction_context: function_term.get_debug_context().clone(),
+                        parameter_context: parameter_term.get_debug_context().clone(),
+                    }),
                 }
             }
             Self::Lambda {
@@ -1779,27 +1763,6 @@ impl Term {
                     value_term: Box::new(inner_type),
                     debug_context: TermDebugContext::TypeOf(Box::new(debug_context.clone())),
                 };
-                if let Self::Application {
-                    function_term,
-                    parameter_term,
-                    debug_context: _,
-                } = &**binding_type
-                {
-                    if **function_term == Self::Identifier("?".to_string(), debug_context.clone()) {
-                        let mut reduced_parameter = parameter_term.clone();
-                        reduced_parameter.infer_type_recursive(state, stack)?;
-                        reduced_parameter.full_normalize(state);
-                        reduced_parameter.fixed_point_reduce(true);
-                        reduced_parameter.full_normalize(state);
-                        let mut self_type = output_type.clone();
-                        self_type.full_normalize(state);
-                        if self_type == *reduced_parameter {
-                            return Ok(*parameter_term.clone());
-                        } else {
-                            return Err(KernelError::InvalidInstance {});
-                        }
-                    }
-                }
                 Ok(output_type)
             }
             Self::Forall {
