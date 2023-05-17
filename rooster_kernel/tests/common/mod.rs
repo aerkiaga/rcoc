@@ -66,6 +66,19 @@ fn parse_term(input: &[char], try_application: bool) -> (Term, &[char]) {
                 rest_of_input,
             )
         }
+        '℺' => {
+            let (type_term, input2) = parse_term(&input[1..], true);
+            assert!(input2[0] == '.');
+            let (value_term, rest_of_input) = parse_term(&input2[1..], true);
+            (
+                Term::Constructor {
+                    type_term: Box::new(type_term),
+                    value_term: Box::new(value_term),
+                    debug_context: TermDebugContext::Ignore,
+                },
+                rest_of_input,
+            )
+        }
         '(' => {
             let (inner_term, input2) = parse_term(&input[1..], true);
             assert!(input2[0] == ')');
