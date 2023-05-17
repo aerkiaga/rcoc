@@ -113,6 +113,17 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                         span: new_span,
                     }
                 });
+            let constructor_expression = just("constructor(")
+                .ignored()
+                .padded_by(token_separator.clone())
+                .then(nested_expression.clone())
+                .then_ignore(just(')').padded_by(token_separator.clone()))
+                .then(nested_expression.clone())
+                .map_with_span(|t, sp| Expression::Constructor {
+                    type_expression: Box::new(t.0 .1),
+                    value_expression: Box::new(t.1),
+                    span: (sp.start(), sp.end()),
+                });
             // alias: ∃x:A.B := ∀y:Prop.∀z:(∀x:A.(∀w:B.y)).y
             let exists_expression = just("exists(")
                 .ignored()
@@ -131,6 +142,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 lambda_expression,
                 forall_expression,
                 fixed_point_expression,
+                constructor_expression,
                 exists_expression,
                 identifier_expression,
             ));

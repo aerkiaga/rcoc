@@ -92,14 +92,16 @@ fn generate_term(data: &[u8]) -> (Option<Term>, &[u8]) {
 fn generate_definition<'a, 'b>(data: &'a [u8], state: &'b State) -> Result<((Term, Term), &'a [u8]), KernelError> {
     let (value_term_option, remaining_data) = generate_term(data);
     let value_term = value_term_option.unwrap();
+    println!("value_term: {:?}", value_term); //D
     let type_term = value_term.infer_type(state)?;
     return Ok(((type_term, value_term), remaining_data));
 }
 
 fuzz_target!(|data: &[u8]| {
     let mut state = State::new();
+    let stat = vec![138, 88, 202, 229, 33, 191, 221, 4, 5, 40, 108, 40];
     let mut definitions = vec![];
-    let mut remaining_data = &*data;
+    let mut remaining_data = &*stat;
     let mut index = 0;
     let mut r#false = Term::Forall {
         binding_identifier: "P".to_string(),
@@ -120,6 +122,7 @@ fuzz_target!(|data: &[u8]| {
         let identifier = format!("x{}", index);
         let (definition_type, definition_value) = (definition.0.clone(), definition.1.clone());
         let mut normalized_type = definition.0.clone();
+        println!("{} = {:?}\n\t:{:?}", identifier, definition_value, definition_type); //D
         match state.try_define(&identifier, definition.0, definition.1) {
             Ok(_) => (),
             Err(_) => return,
