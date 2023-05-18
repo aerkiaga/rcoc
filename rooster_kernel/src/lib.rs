@@ -1730,19 +1730,23 @@ impl Term {
                 debug_context,
             } => {
                 let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
-                let binding_type_type_type =
-                    binding_type_type.infer_type_recursive(state, stack)?;
-                let valid = if let Self::Identifier(s, _) = &binding_type_type_type {
-                    match &**s {
-                        "Type" => true,
-                        _ => {
-                            s.len() > 4
-                                && &s[..4] == "Type"
-                                && match s[4..].parse::<u64>() {
-                                    Ok(_) => true,
-                                    Err(_) => false,
-                                }
+                let valid = if let Self::Identifier(_, _) = &binding_type_type {
+                    let binding_type_type_type =
+                        binding_type_type.infer_type_recursive(state, stack)?;
+                    if let Self::Identifier(s, _) = &binding_type_type_type {
+                        match &**s {
+                            "Type" => true,
+                            _ => {
+                                s.len() > 4
+                                    && &s[..4] == "Type"
+                                    && match s[4..].parse::<u64>() {
+                                        Ok(_) => true,
+                                        Err(_) => false,
+                                    }
+                            }
                         }
+                    } else {
+                        false
                     }
                 } else {
                     false
@@ -1772,19 +1776,23 @@ impl Term {
                 debug_context,
             } => {
                 let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
-                let binding_type_type_type =
-                    binding_type_type.infer_type_recursive(state, stack)?;
-                let valid = if let Self::Identifier(s, _) = &binding_type_type_type {
-                    match &**s {
-                        "Type" => true,
-                        _ => {
-                            s.len() > 4
-                                && &s[..4] == "Type"
-                                && match s[4..].parse::<u64>() {
-                                    Ok(_) => true,
-                                    Err(_) => false,
-                                }
+                let valid = if let Self::Identifier(_, _) = &binding_type_type {
+                    let binding_type_type_type =
+                        binding_type_type.infer_type_recursive(state, stack)?;
+                    if let Self::Identifier(s, _) = &binding_type_type_type {
+                        match &**s {
+                            "Type" => true,
+                            _ => {
+                                s.len() > 4
+                                    && &s[..4] == "Type"
+                                    && match s[4..].parse::<u64>() {
+                                        Ok(_) => true,
+                                        Err(_) => false,
+                                    }
+                            }
                         }
+                    } else {
+                        false
                     }
                 } else {
                     false
@@ -1807,23 +1815,27 @@ impl Term {
                         Box::new(debug_context.clone()),
                     ));
                 }
-                let inner_type_type = inner_type.infer_type_recursive(state, stack)?;
-                stack.pop();
-                let valid = if let Self::Identifier(s, _) = &inner_type_type {
-                    match &**s {
-                        "Type" => true,
-                        _ => {
-                            s.len() > 4
-                                && &s[..4] == "Type"
-                                && match s[4..].parse::<u64>() {
-                                    Ok(_) => true,
-                                    Err(_) => false,
-                                }
+                let valid = if let Self::Identifier(_, _) = inner_type {
+                    let inner_type_type = inner_type.infer_type_recursive(state, stack)?;
+                    if let Self::Identifier(s, _) = &inner_type_type {
+                        match &**s {
+                            "Type" => true,
+                            _ => {
+                                s.len() > 4
+                                    && &s[..4] == "Type"
+                                    && match s[4..].parse::<u64>() {
+                                        Ok(_) => true,
+                                        Err(_) => false,
+                                    }
+                            }
                         }
+                    } else {
+                        false
                     }
                 } else {
                     false
                 };
+                stack.pop();
                 if !valid {
                     return Err(KernelError::InvalidType {
                         incorrect_term: *value_term.clone(),

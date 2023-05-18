@@ -116,9 +116,9 @@ fn generate_definition<'a, 'b>(data: &'a [u8], state: &'b State) -> Result<((Ter
 
 fuzz_target!(|data: &[u8]| {
     let mut state = State::new();
-    //let stat = vec![123, 69, 123, 223, 196, 223, 40, 37, 0, 223, 217];
+    //let stat = vec![127, 176, 176, 184, 0, 64, 0, 65];
     let mut definitions = vec![];
-    let mut remaining_data = &*data;
+    let mut remaining_data = &*data; //&*stat;
     let mut index = 0;
     let mut r#false = Term::Forall {
         binding_identifier: "P".to_string(),
