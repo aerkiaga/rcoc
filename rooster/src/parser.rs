@@ -13,18 +13,18 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
         .then_ignore(text::whitespace())
         .boxed();
     let identifier = filter(|c| char::is_alphabetic(*c))
-            .or(just('_'))
-            .then(
-                filter(|c| char::is_alphabetic(*c))
-                    .or(just('_'))
-                    .repeated()
-                    .collect::<String>(),
-            )
-            .map_with_span(|t, sp: std::ops::Range<usize>| {
-                let mut s = String::from(t.0);
-                s.push_str(&t.1);
-                (s, (sp.start(), sp.end()))
-            });
+        .or(just('_'))
+        .then(
+            filter(|c| char::is_alphabetic(*c))
+                .or(just('_'))
+                .repeated()
+                .collect::<String>(),
+        )
+        .map_with_span(|t, sp: std::ops::Range<usize>| {
+            let mut s = String::from(t.0);
+            s.push_str(&t.1);
+            (s, (sp.start(), sp.end()))
+        });
     let expression = recursive(
         |nested_expression: Recursive<char, Expression, Simple<char>>| {
             let identifier_list = identifier

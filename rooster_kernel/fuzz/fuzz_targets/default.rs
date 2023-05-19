@@ -11,7 +11,7 @@ fn generate_term(data: &[u8]) -> (Option<Term>, &[u8]) {
         0..=63 =>
             (Some(Term::Identifier(format!("x{}", data[0] % 4), TermDebugContext::Ignore)), &data[1..]),
         64..=127 =>
-            (Some(Term::Identifier(["Prop", "Set", "Type(1)"][(data[0] % 3) as usize].to_string(), TermDebugContext::Ignore)), &data[1..]),
+            (Some(Term::Identifier(["Prop", "Set", "Type"][(data[0] % 3) as usize].to_string(), TermDebugContext::Ignore)), &data[1..]),
         128..=159 => {
             let (function_term_option, data2) = generate_term(&data[1..]);
             let (parameter_term_option, data3) = generate_term(data2);

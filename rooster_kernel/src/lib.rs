@@ -832,7 +832,7 @@ impl Term {
             self.replace(name, &term.1);
         }
     }
-    
+
     pub fn delta_normalize_inner(self: &mut Self, state: &State, stack: &Vec<(String, Self)>) {
         for (name, term) in &state.terms {
             let mut replace = true;
@@ -1011,7 +1011,7 @@ impl Term {
         }
         self.alpha_normalize();
     }
-    
+
     pub fn full_normalize_inner(self: &mut Self, state: &State, stack: &Vec<(String, Self)>) {
         self.delta_normalize_inner(state, stack);
         loop {
@@ -1642,6 +1642,7 @@ impl Term {
                             parameter_term.infer_type_recursive(state, stack)?;
                         parameter_type.full_normalize_inner(state, stack);
                         let mut expected_parameter_type = binding_type.clone();
+                        expected_parameter_type.infer_type_recursive(state, stack)?;
                         expected_parameter_type.full_normalize_inner(state, stack);
                         let mut actual_function_term = function_term.clone();
                         let mut generic_identifier = "".to_string();
@@ -1887,6 +1888,7 @@ impl Term {
             } => {
                 binding_type.infer_type_recursive(state, stack)?;
                 let mut normalized_binding_type = binding_type.clone();
+                normalized_binding_type.infer_type_recursive(state, stack)?;
                 normalized_binding_type.full_normalize_inner(state, stack);
                 stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
@@ -1995,10 +1997,13 @@ impl Term {
                 debug_context: _,
             } => {
                 let mut value_term_type = value_term.infer_type_recursive(state, stack)?;
+                value_term_type.infer_type_recursive(state, stack)?;
                 value_term_type.full_normalize_inner(state, stack);
                 let mut expanded_type_term = *type_term.clone();
+                expanded_type_term.infer_type_recursive(state, stack)?;
                 expanded_type_term.full_normalize_inner(state, stack);
                 expanded_type_term.fixed_point_reduce(true);
+                expanded_type_term.infer_type_recursive(state, stack)?;
                 expanded_type_term.full_normalize_inner(state, stack);
                 if value_term_type == expanded_type_term {
                     return Ok(*type_term.clone());

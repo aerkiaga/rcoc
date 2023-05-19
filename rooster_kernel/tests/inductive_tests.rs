@@ -10,7 +10,11 @@ fn nat_constructors() {
     common::execute(&[
         ("nat", "Set", "𝐘self:Set.∀R:Type.∀T:R.∀_:T.∀_:∀_:self.T.T"),
         ("O", "nat", "℺nat.λR:Type.λT:R.λa:T.λb:∀_:nat.T.a"),
-        ("S", "∀_:nat.nat", "λx:nat.℺nat.λR:Type.λT:R.λa:T.λb:∀_:nat.T.b x"),
+        (
+            "S",
+            "∀_:nat.nat",
+            "λx:nat.℺nat.λR:Type.λT:R.λa:T.λb:∀_:nat.T.b x",
+        ),
     ]);
 }
 
@@ -19,7 +23,11 @@ fn add() {
     common::execute(&[
         ("nat", "Set", "𝐘self:Set.∀R:Type.∀T:R.∀_:T.∀_:∀_:self.T.T"),
         ("O", "nat", "℺nat.λR:Type.λT:R.λa:T.λb:∀_:nat.T.a"),
-        ("S", "∀_:nat.nat", "λx:nat.℺nat.λR:Type.λT:R.λa:T.λb:∀_:nat.T.b x"),
+        (
+            "S",
+            "∀_:nat.nat",
+            "λx:nat.℺nat.λR:Type.λT:R.λa:T.λb:∀_:nat.T.b x",
+        ),
         (
             "add",
             "∀_:nat.∀_:nat.nat",
