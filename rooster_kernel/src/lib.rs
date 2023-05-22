@@ -1023,6 +1023,12 @@ impl Term {
         self.alpha_normalize();
     }
 
+    pub fn partial_normalize_inner(self: &mut Self, state: &State, stack: &Vec<(String, Self)>) {
+        self.delta_normalize_inner(state, stack);
+        self.normalize();
+        self.alpha_normalize();
+    }
+
     fn get_debug_context<'a>(self: &'a Self) -> &'a TermDebugContext {
         match self {
             Self::Identifier(_, db) => db,
@@ -1997,8 +2003,7 @@ impl Term {
                 debug_context: _,
             } => {
                 let mut value_term_type = value_term.infer_type_recursive(state, stack)?;
-                value_term_type.infer_type_recursive(state, stack)?;
-                value_term_type.full_normalize_inner(state, stack);
+                value_term_type.partial_normalize_inner(state, stack);
                 let mut expanded_type_term = *type_term.clone();
                 expanded_type_term.infer_type_recursive(state, stack)?;
                 expanded_type_term.full_normalize_inner(state, stack);
