@@ -249,5 +249,8 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
         KernelError::NonprimitiveRecursiveFunction { full_term_context } => {
             println!("NonprimitiveRecursiveFunction");
         }
+        KernelError::SelfReferencingRecursiveType { full_term_context } => {
+            println!("SelfReferencingRecursiveType");
+        }
     }
 }

@@ -448,6 +448,11 @@ pub enum KernelError {
     NonprimitiveRecursiveFunction {
         full_term_context: TermDebugContext,
     },
+    // The type of a recursive definition includes
+    // the definition itself.
+    SelfReferencingRecursiveType {
+        full_term_context: TermDebugContext,
+    },
 }
 
 /// Context that terms inhabit.
@@ -1898,6 +1903,11 @@ impl Term {
                 normalized_binding_type.full_normalize_inner(state, stack);
                 stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
+                if inner_type.contains(binding_identifier) {
+                    return Err(KernelError::SelfReferencingRecursiveType {
+                        full_term_context: self.get_debug_context().clone(),
+                    });
+                }
                 match &**value_term {
                     Self::Lambda {
                         binding_identifier: _,
