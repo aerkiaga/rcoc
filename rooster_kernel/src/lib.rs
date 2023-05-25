@@ -1498,18 +1498,18 @@ impl Term {
                     }
                     break;
                 }
-                let old_identifier = template_constructor_params[n].0.clone();
-                for m in 0..n {
+                let old_identifier = template_constructor_params[c].0.clone();
+                for m in 0..c {
                     template_constructor_params[m].1.replace(
                         &old_identifier,
                         &Self::Identifier(new_identifier.clone(), TermDebugContext::Ignore),
                     );
                 }
                 template_constructor_result.replace(
-                    template_constructor_params[n].0,
+                    template_constructor_params[c].0,
                     &Self::Identifier(new_identifier.clone(), TermDebugContext::Ignore),
                 );
-                *template_constructor_params[n].0 = new_identifier;
+                *template_constructor_params[c].0 = new_identifier;
             }
             // build up inductive instance
             let application = Self::build_application((
