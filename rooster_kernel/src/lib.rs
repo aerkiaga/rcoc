@@ -1653,8 +1653,7 @@ impl Term {
                             parameter_term.infer_type_recursive(state, stack)?;
                         parameter_type.full_normalize_inner(state, stack);
                         let mut expected_parameter_type = binding_type.clone();
-                        expected_parameter_type.infer_type_recursive(state, stack)?;
-                        expected_parameter_type.full_normalize_inner(state, stack);
+                        expected_parameter_type.partial_normalize_inner(state, stack);
                         let mut actual_function_term = function_term.clone();
                         let mut generic_identifier = "".to_string();
                         let is_match_term = if let Self::Application {
@@ -1914,8 +1913,7 @@ impl Term {
             } => {
                 binding_type.infer_type_recursive(state, stack)?;
                 let mut normalized_binding_type = binding_type.clone();
-                normalized_binding_type.infer_type_recursive(state, stack)?;
-                normalized_binding_type.full_normalize_inner(state, stack);
+                normalized_binding_type.partial_normalize_inner(state, stack);
                 stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
                 if inner_type.contains(binding_identifier) {
@@ -2031,9 +2029,9 @@ impl Term {
                 value_term_type.partial_normalize_inner(state, stack);
                 let mut expanded_type_term = *type_term.clone();
                 expanded_type_term.infer_type_recursive(state, stack)?;
-                expanded_type_term.full_normalize_inner(state, stack);
+                expanded_type_term.partial_normalize_inner(state, stack);
                 expanded_type_term.fixed_point_reduce(true);
-                expanded_type_term.full_normalize_inner(state, stack);
+                expanded_type_term.partial_normalize_inner(state, stack);
                 if value_term_type == expanded_type_term {
                     return Ok(*type_term.clone());
                 } else {
