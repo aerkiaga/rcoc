@@ -2033,7 +2033,6 @@ impl Term {
                 expanded_type_term.infer_type_recursive(state, stack)?;
                 expanded_type_term.full_normalize_inner(state, stack);
                 expanded_type_term.fixed_point_reduce(true);
-                expanded_type_term.infer_type_recursive(state, stack)?;
                 expanded_type_term.full_normalize_inner(state, stack);
                 if value_term_type == expanded_type_term {
                     return Ok(*type_term.clone());
