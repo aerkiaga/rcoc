@@ -1799,8 +1799,23 @@ impl Term {
                 stack.push((binding_identifier.clone(), *binding_type.clone()));
                 let inner_type = value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
+                let mut final_binding_identifier = binding_identifier.clone();
+                // rename binding identifier to avoid name collisions
+                if binding_type.contains(binding_identifier) {
+                    let mut suffix: u64 = 0;
+                    let mut new_identifier;
+                    'rep: loop {
+                        new_identifier = format!("{}{}", binding_identifier, suffix);
+                        if binding_type.contains(&new_identifier) {
+                            suffix += 1;
+                            continue 'rep;
+                        }
+                        break;
+                    }
+                    final_binding_identifier = new_identifier;
+                }
                 let output_type = Self::Forall {
-                    binding_identifier: binding_identifier.clone(),
+                    binding_identifier: final_binding_identifier,
                     binding_type: binding_type.clone(),
                     value_term: Box::new(inner_type),
                     debug_context: TermDebugContext::TypeOf(Box::new(debug_context.clone())),
