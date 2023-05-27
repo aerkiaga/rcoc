@@ -1559,7 +1559,7 @@ impl Term {
             *constructors[n].1 = modified_constructor;
         }
         // handle the result
-        *self_result = parameter_term.clone();
+        self_result.replace(&arbitrary_identifier, parameter_term);
 
         if let Self::Forall {
             binding_identifier: _,
