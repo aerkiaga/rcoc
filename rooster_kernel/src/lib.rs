@@ -1572,6 +1572,20 @@ impl Term {
         }
     }
 
+    fn is_captured(identifier: &String, state: &State, stack: &mut Vec<(String, Self)>) -> bool {
+        for (identifier2, _) in stack {
+            if identifier == identifier2 {
+                return true;
+            }
+        }
+        for (identifier2, _) in &state.terms {
+            if identifier == identifier2 {
+                return true;
+            }
+        }
+        return false;
+    }
+
     fn infer_type_recursive(
         self: &Self,
         state: &State,
@@ -1795,24 +1809,32 @@ impl Term {
                         incorrect_context: binding_type.get_debug_context().clone(),
                     });
                 }
-                stack.push((binding_identifier.clone(), *binding_type.clone()));
-                let inner_type = value_term.infer_type_recursive(state, stack)?;
-                stack.pop();
                 let mut final_binding_identifier = binding_identifier.clone();
+                let mut new_value_term = value_term.clone();
                 // rename binding identifier to avoid name collisions
-                if binding_type.contains(binding_identifier) {
+                if Self::is_captured(&final_binding_identifier, state, stack) {
                     let mut suffix: u64 = 0;
                     let mut new_identifier;
                     'rep: loop {
-                        new_identifier = format!("{}{}", binding_identifier, suffix);
-                        if binding_type.contains(&new_identifier) {
+                        new_identifier = format!("{}{}", final_binding_identifier, suffix);
+                        if Self::is_captured(&new_identifier, state, stack) {
                             suffix += 1;
                             continue 'rep;
                         }
                         break;
                     }
                     final_binding_identifier = new_identifier;
+                    new_value_term.replace(
+                        binding_identifier,
+                        &Self::Identifier(
+                            final_binding_identifier.clone(),
+                            TermDebugContext::Ignore,
+                        ),
+                    );
                 }
+                stack.push((final_binding_identifier.clone(), *binding_type.clone()));
+                let inner_type = new_value_term.infer_type_recursive(state, stack)?;
+                stack.pop();
                 let output_type = Self::Forall {
                     binding_identifier: final_binding_identifier,
                     binding_type: binding_type.clone(),
