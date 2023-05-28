@@ -1809,34 +1809,31 @@ impl Term {
                         incorrect_context: binding_type.get_debug_context().clone(),
                     });
                 }
-                let mut final_binding_identifier = binding_identifier.clone();
+                let mut new_binding_identifier = binding_identifier.clone();
                 let mut new_value_term = value_term.clone();
                 // rename binding identifier to avoid name collisions
-                if Self::is_captured(&final_binding_identifier, state, stack) {
+                if Self::is_captured(&new_binding_identifier, state, stack) {
                     let mut suffix: u64 = 0;
                     let mut new_identifier;
                     'rep: loop {
-                        new_identifier = format!("{}{}", final_binding_identifier, suffix);
+                        new_identifier = format!("{}{}", new_binding_identifier, suffix);
                         if Self::is_captured(&new_identifier, state, stack) {
                             suffix += 1;
                             continue 'rep;
                         }
                         break;
                     }
-                    final_binding_identifier = new_identifier;
+                    new_binding_identifier = new_identifier;
                     new_value_term.replace(
                         binding_identifier,
-                        &Self::Identifier(
-                            final_binding_identifier.clone(),
-                            TermDebugContext::Ignore,
-                        ),
+                        &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
                     );
                 }
-                stack.push((final_binding_identifier.clone(), *binding_type.clone()));
+                stack.push((new_binding_identifier.clone(), *binding_type.clone()));
                 let inner_type = new_value_term.infer_type_recursive(state, stack)?;
                 stack.pop();
                 let output_type = Self::Forall {
-                    binding_identifier: final_binding_identifier,
+                    binding_identifier: new_binding_identifier,
                     binding_type: binding_type.clone(),
                     value_term: Box::new(inner_type),
                     debug_context: TermDebugContext::TypeOf(Box::new(debug_context.clone())),
@@ -1878,13 +1875,33 @@ impl Term {
                         incorrect_context: binding_type.get_debug_context().clone(),
                     });
                 }
-                stack.push((binding_identifier.clone(), *binding_type.clone()));
-                let mut inner_type = value_term.infer_type_recursive(state, stack)?;
+                let mut new_binding_identifier = binding_identifier.clone();
+                let mut new_value_term = value_term.clone();
+                // rename binding identifier to avoid name collisions
+                if Self::is_captured(&new_binding_identifier, state, stack) {
+                    let mut suffix: u64 = 0;
+                    let mut new_identifier;
+                    'rep: loop {
+                        new_identifier = format!("{}{}", new_binding_identifier, suffix);
+                        if Self::is_captured(&new_identifier, state, stack) {
+                            suffix += 1;
+                            continue 'rep;
+                        }
+                        break;
+                    }
+                    new_binding_identifier = new_identifier;
+                    new_value_term.replace(
+                        binding_identifier,
+                        &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
+                    );
+                }
+                stack.push((new_binding_identifier.clone(), *binding_type.clone()));
+                let mut inner_type = new_value_term.infer_type_recursive(state, stack)?;
                 // replace after inferring inner type,
                 // so that the type of ∀x:P.Q
                 // is not just shown as the type of Q
                 // unless Q doesn't contain x
-                if value_term.contains(binding_identifier) {
+                if new_value_term.contains(&new_binding_identifier) {
                     inner_type = inner_type.with_new_debug_context(&TermDebugContext::TypeOf(
                         Box::new(debug_context.clone()),
                     ));
@@ -1912,13 +1929,13 @@ impl Term {
                 stack.pop();
                 if !valid {
                     return Err(KernelError::InvalidType {
-                        incorrect_term: *value_term.clone(),
+                        incorrect_term: *new_value_term.clone(),
                         incorrect_type: inner_type.clone(),
-                        incorrect_context: value_term.get_debug_context().clone(),
+                        incorrect_context: new_value_term.get_debug_context().clone(),
                     });
                 }
                 if let Self::Identifier(s, _) = &inner_type {
-                    if s == binding_identifier {
+                    if s == &new_binding_identifier {
                         return Ok(Self::Identifier(
                             "Set".to_string(),
                             TermDebugContext::TypeOf(Box::new(self.get_debug_context().clone())),
@@ -1936,14 +1953,37 @@ impl Term {
                 binding_type.infer_type_recursive(state, stack)?;
                 let mut normalized_binding_type = binding_type.clone();
                 normalized_binding_type.partial_normalize_inner(state, stack);
-                stack.push((binding_identifier.clone(), *normalized_binding_type.clone()));
-                let inner_type = value_term.infer_type_recursive(state, stack)?;
-                if inner_type.contains(binding_identifier) {
+                let mut new_binding_identifier = binding_identifier.clone();
+                let mut new_value_term = value_term.clone();
+                // rename binding identifier to avoid name collisions
+                if Self::is_captured(&new_binding_identifier, state, stack) {
+                    let mut suffix: u64 = 0;
+                    let mut new_identifier;
+                    'rep: loop {
+                        new_identifier = format!("{}{}", new_binding_identifier, suffix);
+                        if Self::is_captured(&new_identifier, state, stack) {
+                            suffix += 1;
+                            continue 'rep;
+                        }
+                        break;
+                    }
+                    new_binding_identifier = new_identifier;
+                    new_value_term.replace(
+                        binding_identifier,
+                        &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
+                    );
+                }
+                stack.push((
+                    new_binding_identifier.clone(),
+                    *normalized_binding_type.clone(),
+                ));
+                let inner_type = new_value_term.infer_type_recursive(state, stack)?;
+                if inner_type.contains(&new_binding_identifier) {
                     return Err(KernelError::SelfReferencingRecursiveType {
                         full_term_context: self.get_debug_context().clone(),
                     });
                 }
-                match &**value_term {
+                match *new_value_term {
                     Self::Lambda {
                         binding_identifier: _,
                         binding_type: _,
@@ -1956,7 +1996,7 @@ impl Term {
                         // λz1:B1.λz2:B2. ... λyi:Ai.D
                         // such that yi is the ith argument
                         // to any binding_identifier within D
-                        let mut current_term = value_term;
+                        let mut current_term = new_value_term;
                         let mut parameter_list = vec![];
                         loop {
                             if let Self::Lambda {
@@ -1964,7 +2004,7 @@ impl Term {
                                 binding_type: current_binding_type,
                                 value_term: current_value_term,
                                 debug_context: _,
-                            } = &**current_term
+                            } = *current_term
                             {
                                 parameter_list.push((
                                     current_binding_identifier.clone(),
@@ -1978,7 +2018,7 @@ impl Term {
                         let mut valid = false;
                         for n in 0..parameter_list.len() {
                             let parameter_type = &parameter_list[n].1;
-                            if parameter_type.contains(binding_identifier) {
+                            if parameter_type.contains(&new_binding_identifier) {
                                 break;
                             }
                             let parameter_type_type =
@@ -1988,7 +2028,7 @@ impl Term {
                                     if current_term.check_strictly_decreasing(
                                         n,
                                         &parameter_list[n].0,
-                                        binding_identifier,
+                                        &new_binding_identifier,
                                     ) {
                                         for _m in 0..n {
                                             stack.pop();
@@ -2015,16 +2055,17 @@ impl Term {
                         // ∀x1:A1.∀x2:A2. ... C
                         // every Ai can only contain binding_identifier
                         // at strictly positive positions.
-                        let mut current_term = value_term;
+                        let mut current_term = new_value_term;
                         loop {
                             if let Self::Forall {
                                 binding_identifier: _,
                                 binding_type: current_binding_type,
                                 value_term: current_value_term,
                                 debug_context: _,
-                            } = &**current_term
+                            } = *current_term
                             {
-                                current_binding_type.check_strict_positivity(binding_identifier)?;
+                                current_binding_type
+                                    .check_strict_positivity(&new_binding_identifier)?;
                                 current_term = current_value_term;
                             } else {
                                 break;
@@ -2033,8 +2074,8 @@ impl Term {
                     }
                     _ => {
                         return Err(KernelError::MisshapenRecursiveDefinition {
-                            unexpected_subterm: *value_term.clone(),
-                            subterm_context: value_term.get_debug_context().clone(),
+                            unexpected_subterm: *new_value_term.clone(),
+                            subterm_context: new_value_term.get_debug_context().clone(),
                             full_term_context: self.get_debug_context().clone(),
                         })
                     }
