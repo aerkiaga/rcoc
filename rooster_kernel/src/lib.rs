@@ -655,7 +655,10 @@ impl Term {
                         loop {
                             let new_binding_identifier =
                                 format!("{}{}", binding_identifier, suffix);
-                            if !value_term.contains(&new_binding_identifier) {
+                            if !value_term.contains(&new_binding_identifier)
+                                && !value.contains(&new_binding_identifier)
+                                && &new_binding_identifier != identifier
+                            {
                                 value_term.replace(
                                     binding_identifier,
                                     &Self::Identifier(
