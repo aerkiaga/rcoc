@@ -69,7 +69,7 @@ Syntax extensions:
 | CoC terms | `A(B)` `\|x: A\| B` `@(x: A) B` `Prop` `Type(n)` `{A}` |
 | CoC sentences | `let a: A = B;` |
 | Intuitionistic logic | `A -> B` `False` `^A` `A /\ B` `A \/ B` `exists(x: A) B` `A <-> B` |
-| Inductive types | `?` `recursive(x: A) B` `Set` `constructor(A) B` |
+| Inductive types | `recursive(x: A) B` `Set` `constructor(A) B` |
 
 ## Acknowledgements
 
