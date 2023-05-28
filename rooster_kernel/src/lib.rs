@@ -23,7 +23,8 @@
 //! * 𝐘x:A.B, for identifier 'x' and terms A and B.
 //! * ℺A.B, for terms A and B.
 //!
-//! _Set_, _Prop_ and _Type(1)_ are special, pre-defined identifiers.
+//! _Set_, _Prop_, _Type_ and _TypeN_ (for every non-negative integer N)
+//! are special, pre-defined identifiers.
 //!
 //! The kernel offers two main operations on terms. The first
 //! is _normalizing_, which is equivalent to computation and
@@ -66,6 +67,15 @@
 //! is not a free variable within the abstraction.
 //! For example, in λx:A.x x0, 'x' wouldn't be renamed to
 //! 'x0', a different name would be chosen.
+//!
+//! Additionally, the new variable name must not occur in
+//! the new term. For example, if 'x' is to be replaced with
+//! x x0 (where x is an outer variable) in λx:A.x, then 'x'
+//! wouldn't be renamed to 'x0' either.
+//!
+//! Finally, the new name must not coincide with the variable
+//! to be replaced. E.g., to replace 'x0' with x in λx:A.x0,
+//! the variable 'x' can't be renamed to 'x0'.
 //!
 //! Then, substitution is used to replace the variable.
 //! This means that all of the above is applied again.
@@ -116,70 +126,76 @@
 //! term is valid (which should have been checked), type
 //! rules will enforce eventual termination.
 //!
-//! Fixed point reduction only operates if B is a term
-//! of the form λy:C.D. Otherwise, it does nothing.
+//! Fixed point reduction may be restricted to only operate
+//! if B is a term of the form λy:C.D, and otherwise do nothing.
 //!
 //! ## Type inference rules
 //! * Variables defined outside the term (in its containing
-//! _state_) take the type they were defined with.
-//! * _Set_ and _Prop_ have type _Type(1)_.
+//! _state_ or as variables in a term enclosing it) take the type
+//! they were defined with.
+//! * _Set_ and _Prop_ have type _Type_, _Type_ has type _Type0_
+//! and every _TypeN_ has type _TypeM_, with M = N + 1.
 //! * A B uses the following rules:
 //!   - If A has type 𝐘x:S.W, its type is fixed point reduced
-//!     once and then normalized.
-//!   - Then, if A is of type ℺G.M, rules for **match terms** apply.
-//!   - Otherwise, if A has type ∀x:T.V and B is of type T,
-//!     the term takes type V with 'x' replaced by B.
-//!   - If none of the two cases apply, the term is invalid.
+//!     once and then normalized. The remaining type must be of the
+//!     form ∀x:T.V.
+//!   - If A is a term of the form C D, where the type of C is
+//!     an **inductive type**, rules for **match terms** apply.
+//!   - Otherwise, if B is of type T (being A of type ∀x:T.V),
+//!     the term takes as type V with 'x' replaced by B.
+//!   - If none of the conditions apply, the term is invalid.
 //! * λx:A.B takes type ∀x:A.T, with T being the type of B
 //! with each free occurrence of 'x' within B taking type A.
-//!   - A's type must be _Set_, _Prop_ or _Type(1)_.
+//!   - A's type's type must be _Type_ or _TypeN_.
+//!   - If 'x' is captured by an outer scope or _state_, it is renamed.
 //! * ∀x:A.B takes the type of B, with each free occurrence
 //! of 'x' within B taking type A.
-//!   - A's type must be _Set_, _Prop_ or _Type(1)_,
-//!     and the output type must be _Set_, _Prop_ or _Type(1)_.
+//!   - A's type's type must be _Type_ or _TypeN_,
+//!     and the output type's type must be _Type_ or _TypeN_.
+//!   - If 'x' is captured by an outer scope or _state_, it is renamed.
 //! * 𝐘x:A.B takes type A, provided that B is also of type A.
 //!   Additionally, either of the following rules must apply:
-//!   - B, and thus 𝐘x:A.B, fulfills the rules for **inductive types**.
-//!   - 𝐘x:A.B fulfills the rules for **primitive recursive functions**.
+//!   - First option, B, and thus 𝐘x:A.B, fulfills the rules for **inductive types**.
+//!   - Second option, 𝐘x:A.B fulfills the rules for **primitive recursive functions**.
+//!   - Note that if 'x' is captured by an outer scope or _state_, it is renamed.
 //! * ℺A.B takes type A, provided that a single fixed point expansion
 //!   of A yields the type of B.
 //!
 //! ### Match terms
-//! A match term is an expression of the form A B,
-//! wherein A has a type that is an **inductive type**.
+//! A match term is an expression of the form C D B,
+//! wherein C has a type that is an **inductive type**.
 //!
-//! Regular type rules are applied, except when A is an
-//! identifier and B contains A. Then, each occurrence of A
+//! Regular type rules are applied, except when C is an
+//! identifier and B contains A. Then, each occurrence of C
 //! is replaced by a different **inductive instance** when
-//! inferring the type of A B.
+//! inferring the type of C D B.
 //!
-//! If the type of A is of the form ∀T:? G.∀x1:X1.∀x2:X2. ... T,
+//! If the type of C D is of the form ∀T:R.∀x1:X1.∀x2:X2. ... T,
 //! then that occurrence of 'T' is replaced by B without
-//! modifying occurrences of A within B.
+//! modifying occurrences of C within B.
 //!
 //! If any of those Xi sub-terms contain 'T', it will occur
 //! as ∀y1:Y1.∀y2:Y2. ... T, due to the requirements for
 //! **inductive types**. Then, before replacing 'T' with B,
-//! every occurrence of A within B will be replaced by
-//! λT:? G.λx1:X1'.λx2:X2'. ... Q, where every Xj' equals
+//! every occurrence of C within B will be replaced by
+//! λR:Type.λT:R.℺G.λx1:X1'.λx2:X2'. ... Q, where every Xj' equals
 //! its corresponding Xj after replacing ∀ expressions with λ,
 //! and Q equals xi y1 y2 ... (note the i index from the
 //! outer expression, xi from the inner term and yi from the
-//! outer term).
+//! outer term). G is the type of C.
 //!
 //! ### Inductive types
-//! An inductive type has the form ∀T:? G.M, or alternatively
-//! 𝐘S:G.∀T:? G.M (i.e., the first form enclosed in a
+//! An inductive type has the form ∀R:W.∀T:R.M, or alternatively
+//! 𝐘S:Set.∀R:W.∀T:R.M (i.e., the first form enclosed in a
 //! fixed point operator).
 //!
 //! Rules for type-checking are the following:
 //! * 'T' only appears _strictly positively_ within M.
 //! * 'S' only appears _strictly positively_ within each
 //!   parameter type of M.
-//! * G equals Set.
 //!
-//! ∀T:? G.M has type G if it fulfills the criteria
-//! above. 𝐘S:G.B has type G if B also has type G,
+//! ∀R:W.∀T:R.M has type Set if it fulfills the criteria
+//! above. 𝐘S:Set.B has type Set if B also has type Set,
 //! otherwise fails to check.
 //!
 //! ### Primitive recursive functions
