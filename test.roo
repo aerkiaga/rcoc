@@ -1,6 +1,6 @@
 /* This is an example file to test rcoc */
 
-/*// basic syntax
+// basic syntax
 let implication_is_reflexive:
     @(T: Prop, x: T) T
 =
@@ -78,17 +78,17 @@ let equivalence_implies_implication:
     |h: {A -> B} /\ {B -> A}|
     |a: A|
     conjunction_implies_operand(A -> B, B -> A, h, a)
-;*/
+;
 
 // inductive types
-let nat: Set = recursive(self: Set) @(T: ?(Set)) T -> {self -> T} -> T;
+let nat: Set = recursive(self: Set) @(R: Type, T: R) T -> {self -> T} -> T;
 
-let O: nat = |T: ?(nat), a: T, b: nat -> T| a;
-let S: nat -> nat = |x: nat| |T: ?(nat), a: T, b: nat -> T| b(x);
+let O: nat = constructor(nat) |R: Type, T: R, a: T, b: nat -> T| a;
+let S: nat -> nat = |x: nat| constructor(nat) |R: Type, T: R, a: T, b: nat -> T| b(x);
 
-/*let add: nat -> nat -> nat = recursive(self: nat -> nat -> nat) |n, m: nat| n(
-    nat, m, |p: nat| S(self(p, m))
-);*/
+let add: nat -> nat -> nat = recursive(self: nat -> nat -> nat) |n, m: nat| n(
+    Set, nat, m, |p: nat| S(self(p, m))
+);
 
 let nat_induction: @(P: nat -> Prop)
     P(O) -> {@(n: nat) P(n) -> P(S(n))} -> @(n: nat) P(n)
@@ -99,5 +99,5 @@ let nat_induction: @(P: nat -> Prop)
     |pO: P(O)|
     |h: @(n: nat) P(n) -> P(S(n))|
     |n: nat|
-    n(P(n), pO, |p: nat| h(p, self(P, pO, h, p)))
+    n(Prop, P(n), pO, |p: nat| h(p, self(P, pO, h, p)))
 ;

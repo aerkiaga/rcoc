@@ -12,21 +12,19 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
         .then_ignore(comment.separated_by(text::whitespace()).ignored())
         .then_ignore(text::whitespace())
         .boxed();
-    let identifier = just('?')
-        .map_with_span(|_, sp: std::ops::Range<usize>| ("?".to_string(), (sp.start(), sp.end())))
-        .or(filter(|c| char::is_alphabetic(*c))
-            .or(just('_'))
-            .then(
-                filter(|c| char::is_alphabetic(*c))
-                    .or(just('_'))
-                    .repeated()
-                    .collect::<String>(),
-            )
-            .map_with_span(|t, sp: std::ops::Range<usize>| {
-                let mut s = String::from(t.0);
-                s.push_str(&t.1);
-                (s, (sp.start(), sp.end()))
-            }));
+    let identifier = filter(|c| char::is_alphabetic(*c))
+        .or(just('_'))
+        .then(
+            filter(|c| char::is_alphabetic(*c))
+                .or(just('_'))
+                .repeated()
+                .collect::<String>(),
+        )
+        .map_with_span(|t, sp: std::ops::Range<usize>| {
+            let mut s = String::from(t.0);
+            s.push_str(&t.1);
+            (s, (sp.start(), sp.end()))
+        });
     let expression = recursive(
         |nested_expression: Recursive<char, Expression, Simple<char>>| {
             let identifier_list = identifier
@@ -113,6 +111,17 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                         span: new_span,
                     }
                 });
+            let constructor_expression = just("constructor(")
+                .ignored()
+                .padded_by(token_separator.clone())
+                .then(nested_expression.clone())
+                .then_ignore(just(')').padded_by(token_separator.clone()))
+                .then(nested_expression.clone())
+                .map_with_span(|t, sp| Expression::Constructor {
+                    type_expression: Box::new(t.0 .1),
+                    value_expression: Box::new(t.1),
+                    span: (sp.start(), sp.end()),
+                });
             // alias: ∃x:A.B := ∀y:Prop.∀z:(∀x:A.(∀w:B.y)).y
             let exists_expression = just("exists(")
                 .ignored()
@@ -131,6 +140,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
                 lambda_expression,
                 forall_expression,
                 fixed_point_expression,
+                constructor_expression,
                 exists_expression,
                 identifier_expression,
             ));

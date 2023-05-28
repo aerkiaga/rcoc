@@ -198,11 +198,10 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
         } => {
             Report::build(ReportKind::Error, source_id, 0)
                 .with_message(format!(
-                    "term's type must be {}, {}, {} or {}",
+                    "term's type must be {}, {} or {}",
                     "Set".fg(Color::Green),
                     "Prop".fg(Color::Green),
                     "Type".fg(Color::Green),
-                    "? M".fg(Color::Green),
                 ))
                 .with_note(format!(
                     "the given term has type {}",
@@ -249,6 +248,9 @@ pub fn emit_kernel_diagnostic(error: &KernelError, code: &String, source_id: &St
         }
         KernelError::NonprimitiveRecursiveFunction { full_term_context } => {
             println!("NonprimitiveRecursiveFunction");
+        }
+        KernelError::SelfReferencingRecursiveType { full_term_context } => {
+            println!("SelfReferencingRecursiveType");
         }
     }
 }

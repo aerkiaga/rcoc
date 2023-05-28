@@ -45,6 +45,15 @@ pub fn new_term(expression: &Expression) -> Term {
             value_term: Box::new(new_term(value_expression)),
             debug_context: TermDebugContext::CodeSpan(*span),
         },
+        Expression::Constructor {
+            type_expression,
+            value_expression,
+            span,
+        } => Term::Constructor {
+            type_term: Box::new(new_term(type_expression)),
+            value_term: Box::new(new_term(value_expression)),
+            debug_context: TermDebugContext::CodeSpan(*span),
+        },
     }
 }
 
