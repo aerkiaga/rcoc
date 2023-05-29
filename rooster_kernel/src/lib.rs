@@ -1063,35 +1063,6 @@ impl Term {
         }
     }
 
-    /// Applies `.delta_normalize_inner()`, followed by alternating
-    /// `.normalize()` and `.fixed_point_reduce()`, and finally
-    /// `.alpha_normalize()`.
-    ///
-    /// Please note that no type checking is performed.
-    ///
-    pub fn full_normalize_inner(self: &mut Self, state: &State, stack: &Vec<(String, Self)>) {
-        self.delta_normalize_inner(state, stack);
-        loop {
-            self.normalize();
-            if !self.fixed_point_reduce(false) {
-                break;
-            }
-        }
-        self.alpha_normalize();
-    }
-
-    /// Applies `.delta_normalize_inner()`, followed by
-    /// `.normalize()`, and finally
-    /// `.alpha_normalize()`.
-    ///
-    /// Please note that no type checking is performed.
-    ///
-    pub fn partial_normalize_inner(self: &mut Self, state: &State, stack: &Vec<(String, Self)>) {
-        self.delta_normalize_inner(state, stack);
-        self.normalize();
-        self.alpha_normalize();
-    }
-
     fn get_debug_context<'a>(self: &'a Self) -> &'a TermDebugContext {
         match self {
             Self::Identifier(_, db) => db,
@@ -2049,10 +2020,7 @@ impl Term {
                         &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
                     );
                 }
-                stack.push((
-                    new_binding_identifier.clone(),
-                    *binding_type.clone(),
-                ));
+                stack.push((new_binding_identifier.clone(), *binding_type.clone()));
                 let inner_type = new_value_term.infer_type_recursive(state, stack)?;
                 if inner_type.contains(&new_binding_identifier) {
                     return Err(KernelError::SelfReferencingRecursiveType {
