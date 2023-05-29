@@ -1048,33 +1048,19 @@ impl Term {
         self.alpha_normalize();
     }
 
-    /// Applies `.delta_normalize_inner()`, followed by alternating
-    /// `.normalize()` and `.fixed_point_reduce()`, and finally
-    /// `.alpha_normalize()`.
+    /// Applies `.delta_normalize()`, followed by alternating
+    /// `.normalize()` and `.fixed_point_reduce()`.
     ///
     /// Please note that no type checking is performed.
     ///
-    pub fn full_normalize_inner(self: &mut Self, state: &State, stack: &Vec<(String, Self)>) {
-        self.delta_normalize_inner(state, stack);
+    pub fn homonymous_normalize(self: &mut Self, state: &State) {
+        self.delta_normalize(state);
         loop {
             self.normalize();
             if !self.fixed_point_reduce(false) {
                 break;
             }
         }
-        self.alpha_normalize();
-    }
-
-    /// Applies `.delta_normalize_inner()`, followed by
-    /// `.normalize()`, and finally
-    /// `.alpha_normalize()`.
-    ///
-    /// Please note that no type checking is performed.
-    ///
-    pub fn partial_normalize_inner(self: &mut Self, state: &State, stack: &Vec<(String, Self)>) {
-        self.delta_normalize_inner(state, stack);
-        self.normalize();
-        self.alpha_normalize();
     }
 
     fn get_debug_context<'a>(self: &'a Self) -> &'a TermDebugContext {
@@ -1683,8 +1669,14 @@ impl Term {
                 debug_context,
             } => {
                 let new_debug_context = TermDebugContext::TypeOf(Box::new(debug_context.clone()));
-                let original_function_type = function_term.infer_type_recursive(state, stack)?;
+                let mut normalized_function_term = function_term.clone();
+                normalized_function_term.infer_type_recursive(state, stack)?;
+                normalized_function_term.homonymous_normalize(state);
+                let original_function_type =
+                    normalized_function_term.infer_type_recursive(state, stack)?;
                 let mut function_type = original_function_type.clone();
+                function_type.infer_type_recursive(state, stack)?;
+                function_type.homonymous_normalize(state);
                 if let Self::FixedPoint {
                     binding_identifier,
                     binding_type: _,
@@ -1708,22 +1700,24 @@ impl Term {
                     } => {
                         let mut parameter_type =
                             parameter_term.infer_type_recursive(state, stack)?;
-                        parameter_type.full_normalize_inner(state, stack);
+                        parameter_type.infer_type_recursive(state, stack)?;
+                        parameter_type.full_normalize(state);
                         let mut expected_parameter_type = binding_type.clone();
-                        expected_parameter_type.partial_normalize_inner(state, stack);
-                        let mut actual_function_term = function_term.clone();
+                        expected_parameter_type.infer_type_recursive(state, stack)?;
+                        expected_parameter_type.full_normalize(state);
+                        let mut actual_function_term = normalized_function_term.clone();
                         let mut generic_identifier = "".to_string();
                         let is_match_term = if let Self::Application {
                             function_term: function_term2,
                             parameter_term: _,
                             debug_context: _,
-                        } = &**function_term
+                        } = *normalized_function_term
                         {
                             if let Self::Application {
                                 function_term: _,
                                 parameter_term: _,
                                 debug_context: _,
-                            } = &**function_term2
+                            } = *function_term2
                             {
                                 false
                             } else {
@@ -1823,10 +1817,14 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
-                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                let mut binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                binding_type_type.infer_type_recursive(state, stack)?;
+                binding_type_type.homonymous_normalize(state);
                 let valid = if let Self::Identifier(_, _) = &binding_type_type {
-                    let binding_type_type_type =
+                    let mut binding_type_type_type =
                         binding_type_type.infer_type_recursive(state, stack)?;
+                    binding_type_type_type.infer_type_recursive(state, stack)?;
+                    binding_type_type_type.homonymous_normalize(state);
                     if let Self::Identifier(s, _) = &binding_type_type_type {
                         match &**s {
                             "Type" => true,
@@ -1889,10 +1887,14 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
-                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                let mut binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                binding_type_type.infer_type_recursive(state, stack)?;
+                binding_type_type.homonymous_normalize(state);
                 let valid = if let Self::Identifier(_, _) = &binding_type_type {
-                    let binding_type_type_type =
+                    let mut binding_type_type_type =
                         binding_type_type.infer_type_recursive(state, stack)?;
+                    binding_type_type_type.infer_type_recursive(state, stack)?;
+                    binding_type_type_type.homonymous_normalize(state);
                     if let Self::Identifier(s, _) = &binding_type_type_type {
                         match &**s {
                             "Type" => true,
@@ -1949,8 +1951,12 @@ impl Term {
                         Box::new(debug_context.clone()),
                     ));
                 }
+                inner_type.infer_type_recursive(state, stack)?;
+                inner_type.homonymous_normalize(state);
                 let valid = if let Self::Identifier(_, _) = inner_type {
-                    let inner_type_type = inner_type.infer_type_recursive(state, stack)?;
+                    let mut inner_type_type = inner_type.infer_type_recursive(state, stack)?;
+                    inner_type_type.infer_type_recursive(state, stack)?;
+                    inner_type_type.full_normalize(state);
                     if let Self::Identifier(s, _) = &inner_type_type {
                         match &**s {
                             "Type" => true,
@@ -1994,8 +2000,6 @@ impl Term {
                 debug_context: _,
             } => {
                 binding_type.infer_type_recursive(state, stack)?;
-                let mut normalized_binding_type = binding_type.clone();
-                normalized_binding_type.partial_normalize_inner(state, stack);
                 let mut new_binding_identifier = binding_identifier.clone();
                 let mut new_value_term = value_term.clone();
                 // rename binding identifier to avoid name collisions
@@ -2016,16 +2020,14 @@ impl Term {
                         &Self::Identifier(new_binding_identifier.clone(), TermDebugContext::Ignore),
                     );
                 }
-                stack.push((
-                    new_binding_identifier.clone(),
-                    *normalized_binding_type.clone(),
-                ));
+                stack.push((new_binding_identifier.clone(), *binding_type.clone()));
                 let inner_type = new_value_term.infer_type_recursive(state, stack)?;
                 if inner_type.contains(&new_binding_identifier) {
                     return Err(KernelError::SelfReferencingRecursiveType {
                         full_term_context: self.get_debug_context().clone(),
                     });
                 }
+                new_value_term.homonymous_normalize(state);
                 match *new_value_term {
                     Self::Lambda {
                         binding_identifier: _,
@@ -2132,12 +2134,12 @@ impl Term {
                 debug_context: _,
             } => {
                 let mut value_term_type = value_term.infer_type_recursive(state, stack)?;
-                value_term_type.partial_normalize_inner(state, stack);
+                value_term_type.full_normalize(state);
                 let mut expanded_type_term = *type_term.clone();
                 expanded_type_term.infer_type_recursive(state, stack)?;
-                expanded_type_term.partial_normalize_inner(state, stack);
+                expanded_type_term.homonymous_normalize(state);
                 expanded_type_term.fixed_point_reduce(true);
-                expanded_type_term.partial_normalize_inner(state, stack);
+                expanded_type_term.full_normalize(state);
                 if value_term_type == expanded_type_term {
                     return Ok(*type_term.clone());
                 } else {
