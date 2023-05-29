@@ -860,27 +860,6 @@ impl Term {
         }
     }
 
-    /// Applies δ-reduction to the greatest extent possible.
-    /// Preserves variable names. Excludes variables already defined
-    /// in an outer scope.
-    ///
-    /// Please note that no type checking is performed.
-    ///
-    pub fn delta_normalize_inner(self: &mut Self, state: &State, stack: &Vec<(String, Self)>) {
-        for (name, term) in &state.terms {
-            let mut replace = true;
-            for (name2, _) in stack {
-                if name == name2 {
-                    replace = false;
-                    break;
-                }
-            }
-            if replace {
-                self.replace(name, &term.1);
-            }
-        }
-    }
-
     fn alpha_normalize_recursive(self: &mut Self, next_suffix: u64) {
         match self {
             Self::Identifier(_, _) => {}
