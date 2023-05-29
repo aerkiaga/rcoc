@@ -1,5 +1,6 @@
 [workspace]
 members = ["rooster", "rooster_afl", "rooster_kernel"]
+default-members = ["rooster", "rooster_kernel"]
 
 [profile.release]
 opt-level = 3
