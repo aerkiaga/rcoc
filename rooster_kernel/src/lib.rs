@@ -1048,6 +1048,21 @@ impl Term {
         self.alpha_normalize();
     }
 
+    /// Applies `.delta_normalize()`, followed by alternating
+    /// `.normalize()` and `.fixed_point_reduce()`.
+    ///
+    /// Please note that no type checking is performed.
+    ///
+    pub fn homonymous_normalize(self: &mut Self, state: &State) {
+        self.delta_normalize(state);
+        loop {
+            self.normalize();
+            if !self.fixed_point_reduce(false) {
+                break;
+            }
+        }
+    }
+
     /// Applies `.delta_normalize_inner()`, followed by alternating
     /// `.normalize()` and `.fixed_point_reduce()`, and finally
     /// `.alpha_normalize()`.
@@ -1683,7 +1698,11 @@ impl Term {
                 debug_context,
             } => {
                 let new_debug_context = TermDebugContext::TypeOf(Box::new(debug_context.clone()));
-                let original_function_type = function_term.infer_type_recursive(state, stack)?;
+                let mut normalized_function_term = function_term.clone();
+                normalized_function_term.infer_type_recursive(state, stack)?;
+                normalized_function_term.homonymous_normalize(state);
+                let original_function_type =
+                    normalized_function_term.infer_type_recursive(state, stack)?;
                 let mut function_type = original_function_type.clone();
                 if let Self::FixedPoint {
                     binding_identifier,
@@ -1713,9 +1732,6 @@ impl Term {
                         let mut expected_parameter_type = binding_type.clone();
                         expected_parameter_type.infer_type_recursive(state, stack)?;
                         expected_parameter_type.full_normalize(state);
-                        let mut normalized_function_term = function_term.clone();
-                        normalized_function_term.infer_type_recursive(state, stack)?;
-                        normalized_function_term.full_normalize(state);
                         let mut actual_function_term = normalized_function_term.clone();
                         let mut generic_identifier = "".to_string();
                         let is_match_term = if let Self::Application {
@@ -1830,7 +1846,7 @@ impl Term {
             } => {
                 let mut binding_type_type = binding_type.infer_type_recursive(state, stack)?;
                 binding_type_type.infer_type_recursive(state, stack)?;
-                binding_type_type.full_normalize(state);
+                binding_type_type.homonymous_normalize(state);
                 let valid = if let Self::Identifier(_, _) = &binding_type_type {
                     let binding_type_type_type =
                         binding_type_type.infer_type_recursive(state, stack)?;
@@ -1898,7 +1914,7 @@ impl Term {
             } => {
                 let mut binding_type_type = binding_type.infer_type_recursive(state, stack)?;
                 binding_type_type.infer_type_recursive(state, stack)?;
-                binding_type_type.full_normalize(state);
+                binding_type_type.homonymous_normalize(state);
                 let valid = if let Self::Identifier(_, _) = &binding_type_type {
                     let binding_type_type_type =
                         binding_type_type.infer_type_recursive(state, stack)?;
@@ -1959,7 +1975,7 @@ impl Term {
                     ));
                 }
                 inner_type.infer_type_recursive(state, stack)?;
-                inner_type.full_normalize(state);
+                inner_type.homonymous_normalize(state);
                 let valid = if let Self::Identifier(_, _) = inner_type {
                     let mut inner_type_type = inner_type.infer_type_recursive(state, stack)?;
                     inner_type_type.infer_type_recursive(state, stack)?;
