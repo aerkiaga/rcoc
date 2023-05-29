@@ -12,10 +12,10 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
         .then_ignore(comment.separated_by(text::whitespace()).ignored())
         .then_ignore(text::whitespace())
         .boxed();
-    let identifier = filter(|c| char::is_alphabetic(*c))
+    let identifier = filter(|c| char::is_alphanumeric(*c))
         .or(just('_'))
         .then(
-            filter(|c| char::is_alphabetic(*c))
+            filter(|c| char::is_alphanumeric(*c))
                 .or(just('_'))
                 .repeated()
                 .collect::<String>(),
