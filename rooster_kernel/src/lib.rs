@@ -2166,12 +2166,12 @@ impl Term {
                 debug_context: _,
             } => {
                 let mut value_term_type = value_term.infer_type_recursive(state, stack)?;
-                value_term_type.partial_normalize_inner(state, stack);
+                value_term_type.full_normalize(state);
                 let mut expanded_type_term = *type_term.clone();
                 expanded_type_term.infer_type_recursive(state, stack)?;
-                expanded_type_term.partial_normalize_inner(state, stack);
+                expanded_type_term.homonymous_normalize(state);
                 expanded_type_term.fixed_point_reduce(true);
-                expanded_type_term.partial_normalize_inner(state, stack);
+                expanded_type_term.full_normalize(state);
                 if value_term_type == expanded_type_term {
                     return Ok(*type_term.clone());
                 } else {
