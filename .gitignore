@@ -3,6 +3,8 @@ target/
 Cargo.lock
 **/*.rs.bk
 *.pdb
+rooster_afl/in
+rooster_afl/out
 rooster_kernel/fuzz/artifacts
 rooster_kernel/fuzz/corpus
 rooster_kernel/fuzz/coverage
