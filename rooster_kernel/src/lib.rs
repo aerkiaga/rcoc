@@ -1704,6 +1704,8 @@ impl Term {
                 let original_function_type =
                     normalized_function_term.infer_type_recursive(state, stack)?;
                 let mut function_type = original_function_type.clone();
+                function_type.infer_type_recursive(state, stack)?;
+                function_type.homonymous_normalize(state);
                 if let Self::FixedPoint {
                     binding_identifier,
                     binding_type: _,
@@ -1848,8 +1850,10 @@ impl Term {
                 binding_type_type.infer_type_recursive(state, stack)?;
                 binding_type_type.homonymous_normalize(state);
                 let valid = if let Self::Identifier(_, _) = &binding_type_type {
-                    let binding_type_type_type =
+                    let mut binding_type_type_type =
                         binding_type_type.infer_type_recursive(state, stack)?;
+                    binding_type_type_type.infer_type_recursive(state, stack)?;
+                    binding_type_type_type.homonymous_normalize(state);
                     if let Self::Identifier(s, _) = &binding_type_type_type {
                         match &**s {
                             "Type" => true,
@@ -1916,8 +1920,10 @@ impl Term {
                 binding_type_type.infer_type_recursive(state, stack)?;
                 binding_type_type.homonymous_normalize(state);
                 let valid = if let Self::Identifier(_, _) = &binding_type_type {
-                    let binding_type_type_type =
+                    let mut binding_type_type_type =
                         binding_type_type.infer_type_recursive(state, stack)?;
+                    binding_type_type_type.infer_type_recursive(state, stack)?;
+                    binding_type_type_type.homonymous_normalize(state);
                     if let Self::Identifier(s, _) = &binding_type_type_type {
                         match &**s {
                             "Type" => true,
@@ -2023,9 +2029,6 @@ impl Term {
                 debug_context: _,
             } => {
                 binding_type.infer_type_recursive(state, stack)?;
-                let mut normalized_binding_type = binding_type.clone();
-                normalized_binding_type.infer_type_recursive(state, stack)?;
-                normalized_binding_type.homonymous_normalize(state);
                 let mut new_binding_identifier = binding_identifier.clone();
                 let mut new_value_term = value_term.clone();
                 // rename binding identifier to avoid name collisions
@@ -2048,7 +2051,7 @@ impl Term {
                 }
                 stack.push((
                     new_binding_identifier.clone(),
-                    *normalized_binding_type.clone(),
+                    *binding_type.clone(),
                 ));
                 let inner_type = new_value_term.infer_type_recursive(state, stack)?;
                 if inner_type.contains(&new_binding_identifier) {
