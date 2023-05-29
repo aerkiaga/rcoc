@@ -1708,22 +1708,27 @@ impl Term {
                     } => {
                         let mut parameter_type =
                             parameter_term.infer_type_recursive(state, stack)?;
-                        parameter_type.full_normalize_inner(state, stack);
+                        parameter_type.infer_type_recursive(state, stack)?;
+                        parameter_type.full_normalize(state);
                         let mut expected_parameter_type = binding_type.clone();
-                        expected_parameter_type.partial_normalize_inner(state, stack);
-                        let mut actual_function_term = function_term.clone();
+                        expected_parameter_type.infer_type_recursive(state, stack)?;
+                        expected_parameter_type.full_normalize(state);
+                        let mut normalized_function_term = function_term.clone();
+                        normalized_function_term.infer_type_recursive(state, stack)?;
+                        normalized_function_term.full_normalize(state);
+                        let mut actual_function_term = normalized_function_term.clone();
                         let mut generic_identifier = "".to_string();
                         let is_match_term = if let Self::Application {
                             function_term: function_term2,
                             parameter_term: _,
                             debug_context: _,
-                        } = &**function_term
+                        } = *normalized_function_term
                         {
                             if let Self::Application {
                                 function_term: _,
                                 parameter_term: _,
                                 debug_context: _,
-                            } = &**function_term2
+                            } = *function_term2
                             {
                                 false
                             } else {
