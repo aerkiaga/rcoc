@@ -618,7 +618,7 @@ impl Term {
     /// Same goes for ∀y:A.x y. In this case, a new name is chosen
     /// that does not occur freely in the inner expression (here x y,
     /// so y0 is a valid name), and then `replace` is called on it.
-    /// 
+    ///
     /// If 'x' needs to be replaced with x x0 in λx:A.x, 'x' won't be
     /// renamed to 'x0'. Same goes for 'x0' to 'x' in λx:A.x0.
     ///
@@ -859,7 +859,6 @@ impl Term {
             self.replace(name, &term.1);
         }
     }
-
 
     /// Applies δ-reduction to the greatest extent possible.
     /// Preserves variable names. Excludes variables already defined
