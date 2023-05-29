@@ -2024,7 +2024,8 @@ impl Term {
             } => {
                 binding_type.infer_type_recursive(state, stack)?;
                 let mut normalized_binding_type = binding_type.clone();
-                normalized_binding_type.partial_normalize_inner(state, stack);
+                normalized_binding_type.infer_type_recursive(state, stack)?;
+                normalized_binding_type.homonymous_normalize(state);
                 let mut new_binding_identifier = binding_identifier.clone();
                 let mut new_value_term = value_term.clone();
                 // rename binding identifier to avoid name collisions
@@ -2055,6 +2056,7 @@ impl Term {
                         full_term_context: self.get_debug_context().clone(),
                     });
                 }
+                new_value_term.homonymous_normalize(state);
                 match *new_value_term {
                     Self::Lambda {
                         binding_identifier: _,
