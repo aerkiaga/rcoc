@@ -1828,7 +1828,9 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
-                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                let mut binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                binding_type_type.infer_type_recursive(state, stack)?;
+                binding_type_type.full_normalize(state);
                 let valid = if let Self::Identifier(_, _) = &binding_type_type {
                     let binding_type_type_type =
                         binding_type_type.infer_type_recursive(state, stack)?;
@@ -1894,7 +1896,9 @@ impl Term {
                 value_term,
                 debug_context,
             } => {
-                let binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                let mut binding_type_type = binding_type.infer_type_recursive(state, stack)?;
+                binding_type_type.infer_type_recursive(state, stack)?;
+                binding_type_type.full_normalize(state);
                 let valid = if let Self::Identifier(_, _) = &binding_type_type {
                     let binding_type_type_type =
                         binding_type_type.infer_type_recursive(state, stack)?;
@@ -1954,8 +1958,12 @@ impl Term {
                         Box::new(debug_context.clone()),
                     ));
                 }
+                inner_type.infer_type_recursive(state, stack)?;
+                inner_type.full_normalize(state);
                 let valid = if let Self::Identifier(_, _) = inner_type {
-                    let inner_type_type = inner_type.infer_type_recursive(state, stack)?;
+                    let mut inner_type_type = inner_type.infer_type_recursive(state, stack)?;
+                    inner_type_type.infer_type_recursive(state, stack)?;
+                    inner_type_type.full_normalize(state);
                     if let Self::Identifier(s, _) = &inner_type_type {
                         match &**s {
                             "Type" => true,
