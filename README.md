@@ -73,7 +73,7 @@ Syntax extensions:
 
 ## Acknowledgements
 
-RCoC uses the amazing [chumsky](https://github.com/zesterer/chumsky)
+Rooster uses the amazing [chumsky](https://github.com/zesterer/chumsky)
 and [ariadne](https://github.com/zesterer/ariadne) crates by @zesterer
 to parse the input and produce meaningful error diagnostics.
 
